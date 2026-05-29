@@ -6,9 +6,9 @@ class EngineeringSelectionScreen extends StatelessWidget {
   const EngineeringSelectionScreen({super.key});
 
   Future<void> selectEngineering(
-      BuildContext context,
-      String specialization,
-      ) async {
+    BuildContext context,
+    String specialization,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final email = prefs.getString('userEmail');
 
@@ -27,11 +27,11 @@ class EngineeringSelectionScreen extends StatelessWidget {
   }
 
   Widget buildEngineeringCard(
-      BuildContext context,
-      String title,
-      IconData icon,
-      Color color,
-      ) {
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+  ) {
     return Expanded(
       child: InkWell(
         onTap: () => selectEngineering(context, title),
@@ -39,9 +39,9 @@ class EngineeringSelectionScreen extends StatelessWidget {
         child: Container(
           height: 180,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
+            color: color.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.35)),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

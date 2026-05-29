@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../database/db_helper.dart';
 import 'field_selection_screen.dart';
 import 'signup_screen.dart';
@@ -26,23 +24,21 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
-    final isValidUser = await authController.loginUser(
-      email,
-      password,
-    );
+    final isValidUser = await authController.loginUser(email, password);
 
     if (!mounted) return;
 
     if (isValidUser) {
       await sessionController.saveLoginSession(email);
+      await DBHelper.claimLegacyData(email);
 
       final savedField = await sessionController.getSavedField(email);
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login successful')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Login successful')));
 
       Navigator.pushReplacement(
         context,
@@ -83,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -94,10 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const Text(
                 'My Notebook',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               const Text(

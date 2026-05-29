@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'subjects_screen.dart';
+import 'notes_screen.dart';
 import 'tasks_screen.dart';
 import 'reminders_screens.dart';
 import '../controllers/session_controller.dart';
 import 'search_screen.dart';
+import 'resources_screen.dart';
+import 'theme_screen.dart';
 import '../database/db_helper.dart';
-
 
 class HomeScreen extends StatefulWidget {
   final String selectedField;
 
-  const HomeScreen({
-    super.key,
-    required this.selectedField,
-  });
+  const HomeScreen({super.key, required this.selectedField});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -39,38 +38,38 @@ class _HomeScreenState extends State<HomeScreen> {
     final email = await sessionController.getUserEmail();
 
     if (email != null && email.isNotEmpty) {
-      await sessionController.saveSelectedField(
-        email,
-        widget.selectedField,
-      );
+      await sessionController.saveSelectedField(email, widget.selectedField);
     }
   }
 
   Future<void> loadDashboardCounts() async {
     final db = await DBHelper.initDb();
+    final userEmail = await sessionController.getUserEmail();
+
+    if (userEmail == null) return;
 
     final subjects = await db.query(
       'subjects',
-      where: 'field = ?',
-      whereArgs: [widget.selectedField],
+      where: 'field = ? AND userEmail = ?',
+      whereArgs: [widget.selectedField, userEmail],
     );
 
     final notes = await db.query(
       'notes',
-      where: 'field = ?',
-      whereArgs: [widget.selectedField],
+      where: 'field = ? AND userEmail = ?',
+      whereArgs: [widget.selectedField, userEmail],
     );
 
     final tasks = await db.query(
       'tasks',
-      where: 'field = ?',
-      whereArgs: [widget.selectedField],
+      where: 'field = ? AND userEmail = ?',
+      whereArgs: [widget.selectedField, userEmail],
     );
 
     final reminders = await db.query(
       'reminders',
-      where: 'field = ?',
-      whereArgs: [widget.selectedField],
+      where: 'field = ? AND userEmail = ?',
+      whereArgs: [widget.selectedField, userEmail],
     );
 
     if (!mounted) return;
@@ -90,38 +89,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (context) => const LoginScreen(),
-      ),
-          (route) => false,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: Row(
         children: [
           Container(
             width: 220,
-            color: Colors.blueGrey.shade50,
+            color: colorScheme.surfaceContainerHighest,
             child: Column(
               children: [
                 const SizedBox(height: 40),
                 const Text(
                   'My Notebook',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   widget.selectedField,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
                 const SizedBox(height: 30),
                 _buildSidebarItem(context, Icons.home, 'Home'),
@@ -130,8 +123,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildSidebarItem(context, Icons.check_circle, 'Tasks'),
                 _buildSidebarItem(context, Icons.alarm, 'Reminders'),
                 _buildSidebarItem(context, Icons.search, 'Search'),
-                if (widget.selectedField != 'Basic')
-                  _buildSidebarItem(context, Icons.library_books, 'Resources'),
+                _buildSidebarItem(context, Icons.library_books, 'Resources'),
+                _buildSidebarItem(context, Icons.palette, 'Theme'),
                 const Spacer(),
                 _buildSidebarItem(context, Icons.logout, 'Logout'),
                 const SizedBox(height: 20),
@@ -146,18 +139,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const Text(
                     'Welcome to My Notebook',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     'Mode: ${widget.selectedField}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   const SizedBox(height: 30),
                   Row(
@@ -193,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
+                        color: colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: _buildDashboardContent(widget.selectedField),
@@ -213,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'General Notebook Dashboard',
         description:
-        'A simple productivity space for your everyday notes and study planning.',
+            'A simple productivity space for your everyday notes and study planning.',
         items: const [
           'Quick notes',
           'Personal tasks',
@@ -225,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'Accounting Dashboard',
         description:
-        'Organize accounting records, study notes, and report-based tasks.',
+            'Organize accounting records, study notes, and report-based tasks.',
         items: const [
           'Financial notes',
           'Balance sheet practice',
@@ -237,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'Finance Dashboard',
         description:
-        'Manage finance notes, deadlines, and calculation-focused study work.',
+            'Manage finance notes, deadlines, and calculation-focused study work.',
         items: const [
           'Investment notes',
           'Budget planning',
@@ -249,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'Marketing Dashboard',
         description:
-        'Keep campaign ideas, branding notes, and presentation tasks in one place.',
+            'Keep campaign ideas, branding notes, and presentation tasks in one place.',
         items: const [
           'Campaign notes',
           'Brand strategy ideas',
@@ -261,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'Management Dashboard',
         description:
-        'Plan meetings, leadership notes, and project organization tasks.',
+            'Plan meetings, leadership notes, and project organization tasks.',
         items: const [
           'Meeting notes',
           'Project tasks',
@@ -273,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'Computer Engineering Dashboard',
         description:
-        'Track technical notes, coding tasks, and system-based coursework.',
+            'Track technical notes, coding tasks, and system-based coursework.',
         items: const [
           'Programming notes',
           'Lab tasks',
@@ -285,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'Mechanical Engineering Dashboard',
         description:
-        'Manage mechanics notes, lab work, and engineering project tasks.',
+            'Manage mechanics notes, lab work, and engineering project tasks.',
         items: const [
           'Mechanics notes',
           'Lab records',
@@ -297,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'Electrical Engineering Dashboard',
         description:
-        'Store circuit notes, electrical concepts, and practical task planning.',
+            'Store circuit notes, electrical concepts, and practical task planning.',
         items: const [
           'Circuit notes',
           'Electronics tasks',
@@ -320,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'Pharmacy Dashboard',
         description:
-        'Track medication notes, pharmacology study materials, and tasks.',
+            'Track medication notes, pharmacology study materials, and tasks.',
         items: const [
           'Drug notes',
           'Pharmacology tasks',
@@ -332,7 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _buildContentBlock(
         title: 'Nursing Dashboard',
         description:
-        'Manage nursing notes, shift-related tasks, and practical study reminders.',
+            'Manage nursing notes, shift-related tasks, and practical study reminders.',
         items: const [
           'Clinical notes',
           'Shift tasks',
@@ -345,12 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return _buildContentBlock(
       title: '$field Dashboard',
       description: 'Your personalized notebook dashboard.',
-      items: const [
-        'Notes',
-        'Tasks',
-        'Reminders',
-        'Resources',
-      ],
+      items: const ['Notes', 'Tasks', 'Reminders', 'Resources'],
     );
   }
 
@@ -364,39 +346,27 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
         Text(
           description,
-          style: const TextStyle(
-            fontSize: 16,
-            color: Colors.grey,
-          ),
+          style: const TextStyle(fontSize: 16, color: Colors.grey),
         ),
         const SizedBox(height: 24),
         const Text(
           'Quick Focus',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 12),
         ...items.map(
-              (item) => Padding(
+          (item) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Row(
               children: [
                 const Icon(Icons.check_circle_outline, size: 20),
                 const SizedBox(width: 10),
-                Text(
-                  item,
-                  style: const TextStyle(fontSize: 16),
-                ),
+                Text(item, style: const TextStyle(fontSize: 16)),
               ],
             ),
           ),
@@ -405,11 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSidebarItem(
-      BuildContext context,
-      IconData icon,
-      String title,
-      ) {
+  Widget _buildSidebarItem(BuildContext context, IconData icon, String title) {
     return ListTile(
       leading: Icon(icon),
       title: Text(title),
@@ -418,9 +384,17 @@ class _HomeScreenState extends State<HomeScreen> {
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => SubjectsScreen(
-                selectedField: widget.selectedField,
-              ),
+              builder: (context) =>
+                  SubjectsScreen(selectedField: widget.selectedField),
+            ),
+          );
+          loadDashboardCounts();
+        } else if (title == 'Notes') {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  NotesScreen(selectedField: widget.selectedField),
             ),
           );
           loadDashboardCounts();
@@ -428,9 +402,8 @@ class _HomeScreenState extends State<HomeScreen> {
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => TasksScreen(
-                selectedField: widget.selectedField,
-              ),
+              builder: (context) =>
+                  TasksScreen(selectedField: widget.selectedField),
             ),
           );
           loadDashboardCounts();
@@ -439,9 +412,7 @@ class _HomeScreenState extends State<HomeScreen> {
             context,
             MaterialPageRoute(
               builder: (context) =>
-                  RemindersScreen(
-                    selectedField: widget.selectedField,
-                  ),
+                  RemindersScreen(selectedField: widget.selectedField),
             ),
           );
           loadDashboardCounts();
@@ -449,12 +420,23 @@ class _HomeScreenState extends State<HomeScreen> {
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => SearchScreen(
-                selectedField: widget.selectedField,
-              ),
+              builder: (context) =>
+                  SearchScreen(selectedField: widget.selectedField),
             ),
           );
-
+        } else if (title == 'Resources') {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  ResourcesScreen(selectedField: widget.selectedField),
+            ),
+          );
+        } else if (title == 'Theme') {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ThemeScreen()),
+          );
         } else if (title == 'Logout') {
           logout(context);
         }
@@ -463,23 +445,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSummaryCard(String title, String count, IconData icon) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.blue.shade50,
+          color: colorScheme.primaryContainer,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 32, color: Colors.blue),
+            Icon(icon, size: 32, color: colorScheme.primary),
             const SizedBox(height: 10),
             Text(
               count,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 5),
             Text(title),

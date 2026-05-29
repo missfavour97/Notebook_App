@@ -4,10 +4,7 @@ import '../controllers/reminder_controller.dart';
 class RemindersScreen extends StatefulWidget {
   final String selectedField;
 
-  const RemindersScreen({
-    super.key,
-    required this.selectedField,
-  });
+  const RemindersScreen({super.key, required this.selectedField});
 
   @override
   State<RemindersScreen> createState() => _RemindersScreenState();
@@ -113,9 +110,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
                     if (selectedDate == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please choose a date'),
-                        ),
+                        const SnackBar(content: Text('Please choose a date')),
                       );
                       return;
                     }
@@ -126,11 +121,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       widget.selectedField,
                     );
 
-                    if (!mounted) return;
+                    if (!mounted || !dialogContext.mounted) return;
 
                     Navigator.pop(dialogContext);
 
                     await loadReminders();
+
+                    if (!mounted) return;
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -161,41 +158,39 @@ class _RemindersScreenState extends State<RemindersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.selectedField} Reminders'),
-      ),
+      appBar: AppBar(title: Text('${widget.selectedField} Reminders')),
       floatingActionButton: FloatingActionButton(
         onPressed: addReminderDialog,
         child: const Icon(Icons.add),
       ),
       body: reminders.isEmpty
           ? const Center(
-        child: Text(
-          'No reminders added yet',
-          style: TextStyle(fontSize: 18),
-        ),
-      )
+              child: Text(
+                'No reminders added yet',
+                style: TextStyle(fontSize: 18),
+              ),
+            )
           : ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: reminders.length,
-        itemBuilder: (context, index) {
-          final reminder = reminders[index];
+              padding: const EdgeInsets.all(16),
+              itemCount: reminders.length,
+              itemBuilder: (context, index) {
+                final reminder = reminders[index];
 
-          return Card(
-            child: ListTile(
-              leading: const Icon(Icons.alarm),
-              title: Text(reminder['title']),
-              subtitle: Text(
-                'Date: ${formatDate(reminder['reminderDate'])}',
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () => deleteReminder(reminder['id']),
-              ),
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.alarm),
+                    title: Text(reminder['title']),
+                    subtitle: Text(
+                      'Date: ${formatDate(reminder['reminderDate'])}',
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => deleteReminder(reminder['id']),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }

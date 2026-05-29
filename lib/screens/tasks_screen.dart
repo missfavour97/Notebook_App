@@ -4,10 +4,7 @@ import '../controllers/task_controller.dart';
 class TasksScreen extends StatefulWidget {
   final String selectedField;
 
-  const TasksScreen({
-    super.key,
-    required this.selectedField,
-  });
+  const TasksScreen({super.key, required this.selectedField});
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -37,18 +34,16 @@ class _TasksScreenState extends State<TasksScreen> {
 
     await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Add Task'),
           content: TextField(
             controller: controller,
-            decoration: const InputDecoration(
-              hintText: 'Enter task name',
-            ),
+            decoration: const InputDecoration(hintText: 'Enter task name'),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -60,9 +55,9 @@ class _TasksScreenState extends State<TasksScreen> {
                   widget.selectedField,
                 );
 
-                if (!mounted) return;
+                if (!mounted || !dialogContext.mounted) return;
 
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 loadTasks();
               },
               child: const Text('Add'),
@@ -76,10 +71,7 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> toggleTask(Map<String, dynamic> task) async {
     final isCompleted = task['isCompleted'] == 1;
 
-    await taskController.toggleTask(
-      task['id'],
-      !isCompleted,
-    );
+    await taskController.toggleTask(task['id'], !isCompleted);
 
     loadTasks();
   }
@@ -92,50 +84,45 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.selectedField} Tasks'),
-      ),
+      appBar: AppBar(title: Text('${widget.selectedField} Tasks')),
       floatingActionButton: FloatingActionButton(
         onPressed: addTaskDialog,
         child: const Icon(Icons.add),
       ),
       body: tasks.isEmpty
           ? const Center(
-        child: Text(
-          'No tasks added yet',
-          style: TextStyle(fontSize: 18),
-        ),
-      )
+              child: Text('No tasks added yet', style: TextStyle(fontSize: 18)),
+            )
           : ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: tasks.length,
-        itemBuilder: (context, index) {
-          final task = tasks[index];
-          final isCompleted = task['isCompleted'] == 1;
+              padding: const EdgeInsets.all(16),
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                final task = tasks[index];
+                final isCompleted = task['isCompleted'] == 1;
 
-          return Card(
-            child: ListTile(
-              leading: Checkbox(
-                value: isCompleted,
-                onChanged: (_) => toggleTask(task),
-              ),
-              title: Text(
-                task['title'],
-                style: TextStyle(
-                  decoration: isCompleted
-                      ? TextDecoration.lineThrough
-                      : TextDecoration.none,
-                ),
-              ),
-              subtitle: Text(widget.selectedField),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () => deleteTask(task['id']),
-              ),
+                return Card(
+                  child: ListTile(
+                    leading: Checkbox(
+                      value: isCompleted,
+                      onChanged: (_) => toggleTask(task),
+                    ),
+                    title: Text(
+                      task['title'],
+                      style: TextStyle(
+                        decoration: isCompleted
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                      ),
+                    ),
+                    subtitle: Text(widget.selectedField),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => deleteTask(task['id']),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }

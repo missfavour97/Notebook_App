@@ -1,50 +1,57 @@
-import 'package:sqflite/sqflite.dart';
 import '../database/db_helper.dart';
 
 class SubjectRepository {
   Future<List<Map<String, dynamic>>> getSubjects(String field) async {
-    final Database db = await DBHelper.initDb();
+    final db = await DBHelper.initDb();
+    final userEmail = await DBHelper.currentUserEmail();
+
+    if (userEmail == null) return [];
 
     return await db.query(
       'subjects',
-      where: 'field = ?',
-      whereArgs: [field],
+      where: 'field = ? AND userEmail = ?',
+      whereArgs: [field, userEmail],
       orderBy: 'id DESC',
     );
   }
 
   Future<void> addSubject(String title, String field) async {
-    final Database db = await DBHelper.initDb();
+    final db = await DBHelper.initDb();
+    final userEmail = await DBHelper.currentUserEmail();
 
-    await db.insert(
-      'subjects',
-      {
-        'title': title,
-        'field': field,
-      },
-    );
+    if (userEmail == null) return;
+
+    await db.insert('subjects', {
+      'title': title,
+      'field': field,
+      'userEmail': userEmail,
+    });
   }
 
   Future<void> updateSubject(int id, String newTitle) async {
-    final Database db = await DBHelper.initDb();
+    final db = await DBHelper.initDb();
+    final userEmail = await DBHelper.currentUserEmail();
+
+    if (userEmail == null) return;
 
     await db.update(
       'subjects',
-      {
-        'title': newTitle,
-      },
-      where: 'id = ?',
-      whereArgs: [id],
+      {'title': newTitle},
+      where: 'id = ? AND userEmail = ?',
+      whereArgs: [id, userEmail],
     );
   }
 
   Future<void> deleteSubject(int id) async {
-    final Database db = await DBHelper.initDb();
+    final db = await DBHelper.initDb();
+    final userEmail = await DBHelper.currentUserEmail();
+
+    if (userEmail == null) return;
 
     await db.delete(
       'subjects',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'id = ? AND userEmail = ?',
+      whereArgs: [id, userEmail],
     );
   }
 }

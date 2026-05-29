@@ -20,9 +20,7 @@ class FieldSelectionScreen extends StatelessWidget {
 
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => HomeScreen(selectedField: field),
-      ),
+      MaterialPageRoute(builder: (context) => HomeScreen(selectedField: field)),
     );
   }
 
@@ -40,9 +38,9 @@ class FieldSelectionScreen extends StatelessWidget {
         child: Container(
           height: 180,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
+            color: color.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.35)),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -66,10 +64,7 @@ class FieldSelectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Choose Your Mode'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Choose Your Mode'), centerTitle: true),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -125,7 +120,7 @@ class FieldSelectionScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) =>
-                        const EngineeringSelectionScreen(),
+                            const EngineeringSelectionScreen(),
                       ),
                     );
                   },

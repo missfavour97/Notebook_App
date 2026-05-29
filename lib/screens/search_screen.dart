@@ -4,10 +4,7 @@ import '../controllers/search_controller.dart';
 class SearchScreen extends StatefulWidget {
   final String selectedField;
 
-  const SearchScreen({
-    super.key,
-    required this.selectedField,
-  });
+  const SearchScreen({super.key, required this.selectedField});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -20,10 +17,7 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Map<String, dynamic>> results = [];
 
   Future<void> runSearch(String query) async {
-    final data = await searchController.searchAll(
-      query,
-      widget.selectedField,
-    );
+    final data = await searchController.searchAll(query, widget.selectedField);
 
     if (!mounted) return;
 
@@ -50,9 +44,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.selectedField} Search'),
-      ),
+      appBar: AppBar(title: Text('${widget.selectedField} Search')),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -74,28 +66,28 @@ class _SearchScreenState extends State<SearchScreen> {
             Expanded(
               child: results.isEmpty
                   ? const Center(
-                child: Text(
-                  'No search results',
-                  style: TextStyle(fontSize: 18),
-                ),
-              )
-                  : ListView.builder(
-                itemCount: results.length,
-                itemBuilder: (context, index) {
-                  final item = results[index];
-
-                  return Card(
-                    child: ListTile(
-                      leading: Icon(getIcon(item['type'])),
-                      title: Text(item['title']?.toString() ?? ''),
-                      subtitle: Text(item['subtitle']?.toString() ?? ''),
-                      trailing: Chip(
-                        label: Text(item['type']?.toString() ?? ''),
+                      child: Text(
+                        'No search results',
+                        style: TextStyle(fontSize: 18),
                       ),
+                    )
+                  : ListView.builder(
+                      itemCount: results.length,
+                      itemBuilder: (context, index) {
+                        final item = results[index];
+
+                        return Card(
+                          child: ListTile(
+                            leading: Icon(getIcon(item['type'])),
+                            title: Text(item['title']?.toString() ?? ''),
+                            subtitle: Text(item['subtitle']?.toString() ?? ''),
+                            trailing: Chip(
+                              label: Text(item['type']?.toString() ?? ''),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),

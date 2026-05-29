@@ -52,13 +52,10 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
   String encodeStrokes() {
     final encoded = strokes.map((stroke) {
       return {
-        'color': stroke.color.value,
+        'color': stroke.color.toARGB32(),
         'width': stroke.strokeWidth,
         'points': stroke.points.map((point) {
-          return {
-            'x': point.dx,
-            'y': point.dy,
-          };
+          return {'x': point.dx, 'y': point.dy};
         }).toList(),
       };
     }).toList();
@@ -102,11 +99,7 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
         );
       }
 
-      return DrawingStroke(
-        points: [],
-        color: Colors.black,
-        strokeWidth: 2.5,
-      );
+      return DrawingStroke(points: [], color: Colors.black, strokeWidth: 2.5);
     }).toList();
   }
 
@@ -140,9 +133,9 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Note saved')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Note saved')));
   }
 
   void startStroke(Offset point) {
@@ -154,7 +147,7 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
     if (selectedTool != 'Pen' && selectedTool != 'Highlighter') return;
 
     final strokeColor = selectedTool == 'Highlighter'
-        ? selectedPenColor.withOpacity(0.35)
+        ? selectedPenColor.withValues(alpha: 0.35)
         : selectedPenColor;
 
     final width = selectedTool == 'Highlighter'
@@ -356,10 +349,7 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
       appBar: AppBar(
         title: Text(widget.subjectTitle),
         actions: [
-          IconButton(
-            onPressed: saveNote,
-            icon: const Icon(Icons.save),
-          ),
+          IconButton(onPressed: saveNote, icon: const Icon(Icons.save)),
         ],
       ),
       body: Padding(
@@ -383,7 +373,7 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
                   buildToolButton(Icons.delete_outline, 'Clear'),
                   const SizedBox(width: 20),
                   ...templates.expand(
-                        (template) => [
+                    (template) => [
                       buildTemplateChip(template),
                       const SizedBox(width: 10),
                     ],
@@ -465,7 +455,7 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
                                 ? 'Write your $selectedTemplate note...'
                                 : null,
                           ),
-                          style:TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             color: selectedPenColor,
                           ),
@@ -526,11 +516,7 @@ class DrawingPainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.round;
 
       for (int i = 0; i < stroke.points.length - 1; i++) {
-        canvas.drawLine(
-          stroke.points[i],
-          stroke.points[i + 1],
-          paint,
-        );
+        canvas.drawLine(stroke.points[i], stroke.points[i + 1], paint);
       }
     }
   }
@@ -543,17 +529,13 @@ class LinedPagePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.blueGrey.withOpacity(0.25)
+      ..color = Colors.blueGrey.withValues(alpha: 0.25)
       ..strokeWidth = 1;
 
     const gap = 32.0;
 
     for (double y = gap; y < size.height; y += gap) {
-      canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y),
-        paint,
-      );
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
 
@@ -565,25 +547,17 @@ class GridPagePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.blueGrey.withOpacity(0.18)
+      ..color = Colors.blueGrey.withValues(alpha: 0.18)
       ..strokeWidth = 1;
 
     const gap = 28.0;
 
     for (double y = gap; y < size.height; y += gap) {
-      canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y),
-        paint,
-      );
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
 
     for (double x = gap; x < size.width; x += gap) {
-      canvas.drawLine(
-        Offset(x, 0),
-        Offset(x, size.height),
-        paint,
-      );
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
   }
 

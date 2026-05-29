@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
-import '../database/db_helper.dart';
 import 'subject_note_screen.dart';
+import '../controllers/note_controller.dart';
 import '../controllers/subject_controller.dart';
 
 class SubjectsScreen extends StatefulWidget {
   final String selectedField;
 
-  const SubjectsScreen({
-    super.key,
-    required this.selectedField,
-  });
+  const SubjectsScreen({super.key, required this.selectedField});
 
   @override
   State<SubjectsScreen> createState() => _SubjectsScreenState();
@@ -20,6 +16,7 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
   List<Map<String, dynamic>> subjects = [];
 
   final SubjectController subjectController = SubjectController();
+  final NoteController noteController = NoteController();
 
   @override
   void initState() {
@@ -40,18 +37,16 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
 
     await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Add Subject'),
           content: TextField(
             controller: controller,
-            decoration: const InputDecoration(
-              hintText: 'Enter subject name',
-            ),
+            decoration: const InputDecoration(hintText: 'Enter subject name'),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -63,9 +58,9 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
                   widget.selectedField,
                 );
 
-                if (!mounted) return;
+                if (!mounted || !dialogContext.mounted) return;
 
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 loadSubjects();
               },
               child: const Text('Add'),
@@ -81,7 +76,7 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
 
     await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Rename Subject'),
           content: TextField(
@@ -92,7 +87,7 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -104,9 +99,9 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
                   controller.text.trim(),
                 );
 
-                if (!mounted) return;
+                if (!mounted || !dialogContext.mounted) return;
 
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 loadSubjects();
               },
               child: const Text('Save'),
@@ -123,28 +118,21 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
   }
 
   Future<void> openSubject(Map<String, dynamic> subject) async {
-    final db = await DBHelper.initDb();
-
-    final result = await db.query(
-      'notes',
-      where: 'subject = ? AND field = ?',
-      whereArgs: [
-        subject['title'],
-        widget.selectedField,
-      ],
-      limit: 1,
+    final note = await noteController.loadNote(
+      subject['title'],
+      widget.selectedField,
     );
 
     if (!mounted) return;
 
-    if (result.isNotEmpty) {
+    if (note != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => SubjectNoteScreen(
             subjectTitle: subject['title'],
             selectedField: widget.selectedField,
-            noteType: result.first['noteType'] as String? ?? 'Blank Note',
+            noteType: note['noteType'] as String? ?? 'Blank Note',
           ),
         ),
       );
@@ -169,18 +157,12 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
               children: [
                 const Text(
                   'Choose Note Type',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   subject['title'],
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
                 ),
                 const SizedBox(height: 24),
                 GridView.count(
@@ -214,26 +196,20 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
   }
 
   Widget buildNoteTypeCard(
-      Map<String, dynamic> subject,
-      String noteType,
-      IconData icon,
-      ) {
+    Map<String, dynamic> subject,
+    String noteType,
+    IconData icon,
+  ) {
     return InkWell(
       onTap: () async {
         Navigator.pop(context);
 
-        final db = await DBHelper.initDb();
-
-        await db.insert(
-          'notes',
-          {
-            'subject': subject['title'],
-            'field': widget.selectedField,
-            'content': '',
-            'noteType': noteType,
-            'drawing': '',
-          },
-          conflictAlgorithm: ConflictAlgorithm.replace,
+        await noteController.saveNote(
+          subject['title'],
+          widget.selectedField,
+          '',
+          noteType,
+          '',
         );
 
         if (!mounted) return;
@@ -261,12 +237,7 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
           children: [
             Icon(icon, size: 34),
             const SizedBox(height: 10),
-            Text(
-              noteType,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(noteType, style: const TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -276,50 +247,48 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.selectedField} Subjects'),
-      ),
+      appBar: AppBar(title: Text('${widget.selectedField} Subjects')),
       floatingActionButton: FloatingActionButton(
         onPressed: addSubjectDialog,
         child: const Icon(Icons.add),
       ),
       body: subjects.isEmpty
           ? const Center(
-        child: Text(
-          'No subjects added yet',
-          style: TextStyle(fontSize: 18),
-        ),
-      )
-          : ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: subjects.length,
-        itemBuilder: (context, index) {
-          final subject = subjects[index];
-
-          return Card(
-            child: ListTile(
-              title: Text(subject['title']),
-              subtitle: Text(subject['field']),
-              onTap: () {
-                openSubject(subject);
-              },
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue),
-                    onPressed: () => editSubjectDialog(subject),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => deleteSubject(subject['id']),
-                  ),
-                ],
+              child: Text(
+                'No subjects added yet',
+                style: TextStyle(fontSize: 18),
               ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: subjects.length,
+              itemBuilder: (context, index) {
+                final subject = subjects[index];
+
+                return Card(
+                  child: ListTile(
+                    title: Text(subject['title']),
+                    subtitle: Text(subject['field']),
+                    onTap: () {
+                      openSubject(subject);
+                    },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => editSubjectDialog(subject),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => deleteSubject(subject['id']),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }
