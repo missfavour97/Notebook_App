@@ -7,16 +7,40 @@ class SubjectController {
     return await _subjectRepository.getSubjects(field);
   }
 
-  Future<void> addSubject(String title, String field) async {
+  Future<void> addSubject(
+    String title,
+    String field, {
+    int? coverColor,
+    String? coverPattern,
+  }) async {
     if (title.trim().isEmpty) return;
 
-    await _subjectRepository.addSubject(title, field);
+    await _subjectRepository.addSubject(
+      title,
+      field,
+      coverColor: coverColor,
+      coverPattern: coverPattern,
+    );
+  }
+
+  Future<void> updateSubject(
+    int id,
+    String newTitle, {
+    int? coverColor,
+    String? coverPattern,
+  }) async {
+    if (newTitle.trim().isEmpty) return;
+
+    await _subjectRepository.updateSubject(
+      id,
+      newTitle,
+      coverColor: coverColor,
+      coverPattern: coverPattern,
+    );
   }
 
   Future<void> renameSubject(int id, String newTitle) async {
-    if (newTitle.trim().isEmpty) return;
-
-    await _subjectRepository.updateSubject(id, newTitle);
+    await updateSubject(id, newTitle);
   }
 
   Future<void> deleteSubject(int id) async {

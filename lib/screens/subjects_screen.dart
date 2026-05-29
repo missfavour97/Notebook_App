@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'subject_note_screen.dart';
 import '../controllers/note_controller.dart';
 import '../controllers/subject_controller.dart';
+import '../widgets/notebook_cover.dart';
 
 class SubjectsScreen extends StatefulWidget {
   final String selectedField;
@@ -27,6 +28,8 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
   Future<void> loadSubjects() async {
     final data = await subjectController.loadSubjects(widget.selectedField);
 
+    if (!mounted) return;
+
     setState(() {
       subjects = data;
     });
@@ -34,38 +37,73 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
 
   Future<void> addSubjectDialog() async {
     final controller = TextEditingController();
+    var selectedCover = NotebookCoverStyles
+        .options[subjects.length % NotebookCoverStyles.options.length];
 
     await showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Add Subject'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(hintText: 'Enter subject name'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (controller.text.trim().isEmpty) return;
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add Subject'),
+              content: SizedBox(
+                width: 540,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: controller,
+                        decoration: const InputDecoration(
+                          hintText: 'Enter subject name',
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Choose cover',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 10),
+                      buildCoverPicker(
+                        selectedCover: selectedCover,
+                        onSelected: (cover) {
+                          setDialogState(() {
+                            selectedCover = cover;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (controller.text.trim().isEmpty) return;
 
-                await subjectController.addSubject(
-                  controller.text.trim(),
-                  widget.selectedField,
-                );
+                    await subjectController.addSubject(
+                      controller.text.trim(),
+                      widget.selectedField,
+                      coverColor: selectedCover.color.toARGB32(),
+                      coverPattern: selectedCover.pattern,
+                    );
 
-                if (!mounted || !dialogContext.mounted) return;
+                    if (!mounted || !dialogContext.mounted) return;
 
-                Navigator.pop(dialogContext);
-                loadSubjects();
-              },
-              child: const Text('Add'),
-            ),
-          ],
+                    Navigator.pop(dialogContext);
+                    loadSubjects();
+                  },
+                  child: const Text('Add'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -73,40 +111,72 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
 
   Future<void> editSubjectDialog(Map<String, dynamic> subject) async {
     final controller = TextEditingController(text: subject['title']);
+    var selectedCover = NotebookCoverStyles.fromSubject(subject);
 
     await showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Rename Subject'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              hintText: 'Enter new subject name',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (controller.text.trim().isEmpty) return;
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Subject'),
+              content: SizedBox(
+                width: 540,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: controller,
+                        decoration: const InputDecoration(
+                          hintText: 'Enter new subject name',
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Choose cover',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 10),
+                      buildCoverPicker(
+                        selectedCover: selectedCover,
+                        onSelected: (cover) {
+                          setDialogState(() {
+                            selectedCover = cover;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (controller.text.trim().isEmpty) return;
 
-                await subjectController.renameSubject(
-                  subject['id'],
-                  controller.text.trim(),
-                );
+                    await subjectController.updateSubject(
+                      subject['id'],
+                      controller.text.trim(),
+                      coverColor: selectedCover.color.toARGB32(),
+                      coverPattern: selectedCover.pattern,
+                    );
 
-                if (!mounted || !dialogContext.mounted) return;
+                    if (!mounted || !dialogContext.mounted) return;
 
-                Navigator.pop(dialogContext);
-                loadSubjects();
-              },
-              child: const Text('Save'),
-            ),
-          ],
+                    Navigator.pop(dialogContext);
+                    loadSubjects();
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -244,6 +314,86 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
     );
   }
 
+  Widget buildCoverPicker({
+    required NotebookCoverOption selectedCover,
+    required ValueChanged<NotebookCoverOption> onSelected,
+  }) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: NotebookCoverStyles.options.map((cover) {
+        final isSelected =
+            cover.color.toARGB32() == selectedCover.color.toARGB32() &&
+            cover.pattern == selectedCover.pattern;
+
+        return NotebookCoverSwatch(
+          cover: cover,
+          isSelected: isSelected,
+          onTap: () => onSelected(cover),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget buildSubjectCard(Map<String, dynamic> subject) {
+    final cover = NotebookCoverStyles.fromSubject(subject);
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => openSubject(subject),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            NotebookCover(
+              title: subject['title']?.toString() ?? '',
+              subtitle: widget.selectedField,
+              cover: cover,
+              height: 190,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 8, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          subject['title']?.toString() ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subject['field']?.toString() ?? widget.selectedField,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Edit subject',
+                    icon: const Icon(Icons.edit),
+                    onPressed: () => editSubjectDialog(subject),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete subject',
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => deleteSubject(subject['id']),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -259,33 +409,24 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
                 style: TextStyle(fontSize: 18),
               ),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: subjects.length,
-              itemBuilder: (context, index) {
-                final subject = subjects[index];
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final crossAxisCount = (constraints.maxWidth ~/ 230)
+                    .clamp(1, 5)
+                    .toInt();
 
-                return Card(
-                  child: ListTile(
-                    title: Text(subject['title']),
-                    subtitle: Text(subject['field']),
-                    onTap: () {
-                      openSubject(subject);
-                    },
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () => editSubjectDialog(subject),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => deleteSubject(subject['id']),
-                        ),
-                      ],
-                    ),
+                return GridView.builder(
+                  padding: const EdgeInsets.all(18),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    mainAxisExtent: 276,
                   ),
+                  itemCount: subjects.length,
+                  itemBuilder: (context, index) {
+                    return buildSubjectCard(subjects[index]);
+                  },
                 );
               },
             ),

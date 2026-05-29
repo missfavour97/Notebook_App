@@ -15,7 +15,12 @@ class SubjectRepository {
     );
   }
 
-  Future<void> addSubject(String title, String field) async {
+  Future<void> addSubject(
+    String title,
+    String field, {
+    int? coverColor,
+    String? coverPattern,
+  }) async {
     final db = await DBHelper.initDb();
     final userEmail = await DBHelper.currentUserEmail();
 
@@ -25,10 +30,17 @@ class SubjectRepository {
       'title': title,
       'field': field,
       'userEmail': userEmail,
+      'coverColor': coverColor,
+      'coverPattern': coverPattern,
     });
   }
 
-  Future<void> updateSubject(int id, String newTitle) async {
+  Future<void> updateSubject(
+    int id,
+    String newTitle, {
+    int? coverColor,
+    String? coverPattern,
+  }) async {
     final db = await DBHelper.initDb();
     final userEmail = await DBHelper.currentUserEmail();
 
@@ -36,7 +48,11 @@ class SubjectRepository {
 
     await db.update(
       'subjects',
-      {'title': newTitle},
+      {
+        'title': newTitle,
+        'coverColor': coverColor,
+        'coverPattern': coverPattern,
+      },
       where: 'id = ? AND userEmail = ?',
       whereArgs: [id, userEmail],
     );

@@ -23,7 +23,7 @@ class DBHelper {
   static Future<Database> _openDb() async {
     return await openDatabase(
       join(await getDatabasesPath(), 'notebook.db'),
-      version: 9,
+      version: 10,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE users(
@@ -39,7 +39,9 @@ class DBHelper {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
             field TEXT,
-            userEmail TEXT
+            userEmail TEXT,
+            coverColor INTEGER,
+            coverPattern TEXT
           )
         ''');
 
@@ -120,13 +122,17 @@ class DBHelper {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           title TEXT,
           field TEXT,
-          userEmail TEXT
+          userEmail TEXT,
+          coverColor INTEGER,
+          coverPattern TEXT
         )
       ''');
       return;
     }
 
     await _addColumnIfMissing(db, _subjectsTable, 'userEmail TEXT');
+    await _addColumnIfMissing(db, _subjectsTable, 'coverColor INTEGER');
+    await _addColumnIfMissing(db, _subjectsTable, 'coverPattern TEXT');
   }
 
   static Future<void> _fixNotesTable(Database db) async {
