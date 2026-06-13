@@ -1,18 +1,28 @@
-import '../database/db_helper.dart';
+import '../dao/subject_dao.dart';
+import 'current_user_scope.dart';
 
 class SubjectRepository {
+  final SubjectDao subjectDao;
+  final CurrentUserScope userScope;
+
+  SubjectRepository({SubjectDao? subjectDao, CurrentUserScope? userScope})
+    : subjectDao = subjectDao ?? SubjectDao(),
+      userScope = userScope ?? CurrentUserScope();
+
   Future<List<Map<String, dynamic>>> getSubjects(String field) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
+    final userEmail = await userScope.email();
 
     if (userEmail == null) return [];
 
-    return await db.query(
-      'subjects',
-      where: 'field = ? AND userEmail = ?',
-      whereArgs: [field, userEmail],
-      orderBy: 'id DESC',
-    );
+    return await subjectDao.findByField(field: field, userEmail: userEmail);
+  }
+
+  Future<int> countSubjects(String field) async {
+    final userEmail = await userScope.email();
+
+    if (userEmail == null) return 0;
+
+    return await subjectDao.countByField(field: field, userEmail: userEmail);
   }
 
   Future<void> addSubject(
@@ -21,18 +31,17 @@ class SubjectRepository {
     int? coverColor,
     String? coverPattern,
   }) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
+    final userEmail = await userScope.email();
 
     if (userEmail == null) return;
 
-    await db.insert('subjects', {
-      'title': title,
-      'field': field,
-      'userEmail': userEmail,
-      'coverColor': coverColor,
-      'coverPattern': coverPattern,
-    });
+    await subjectDao.insertSubject(
+      title: title,
+      field: field,
+      userEmail: userEmail,
+      coverColor: coverColor,
+      coverPattern: coverPattern,
+    );
   }
 
   Future<void> updateSubject(
@@ -41,33 +50,26 @@ class SubjectRepository {
     int? coverColor,
     String? coverPattern,
   }) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
+    final userEmail = await userScope.email();
 
     if (userEmail == null) return;
 
-    await db.update(
-      'subjects',
-      {
+    await subjectDao.updateSubject(
+      id: id,
+      userEmail: userEmail,
+      values: {
         'title': newTitle,
         'coverColor': coverColor,
         'coverPattern': coverPattern,
       },
-      where: 'id = ? AND userEmail = ?',
-      whereArgs: [id, userEmail],
     );
   }
 
   Future<void> deleteSubject(int id) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
+    final userEmail = await userScope.email();
 
     if (userEmail == null) return;
 
-    await db.delete(
-      'subjects',
-      where: 'id = ? AND userEmail = ?',
-      whereArgs: [id, userEmail],
-    );
+    await subjectDao.deleteSubject(id: id, userEmail: userEmail);
   }
 }

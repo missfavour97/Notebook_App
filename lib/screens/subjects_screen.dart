@@ -394,6 +394,59 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
     );
   }
 
+  Widget buildEmptyState() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 96,
+              height: 118,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withValues(alpha: 0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.auto_stories,
+                size: 44,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Start your shelf',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.selectedField,
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: addSubjectDialog,
+              icon: const Icon(Icons.add),
+              label: const Text('Add subject'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -403,12 +456,7 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
         child: const Icon(Icons.add),
       ),
       body: subjects.isEmpty
-          ? const Center(
-              child: Text(
-                'No subjects added yet',
-                style: TextStyle(fontSize: 18),
-              ),
-            )
+          ? buildEmptyState()
           : LayoutBuilder(
               builder: (context, constraints) {
                 final crossAxisCount = (constraints.maxWidth ~/ 230)

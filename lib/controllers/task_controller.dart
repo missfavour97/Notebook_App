@@ -1,58 +1,24 @@
-import '../database/db_helper.dart';
+import '../repositories/task_repository.dart';
 
 class TaskController {
+  final TaskRepository taskRepository;
+
+  TaskController({TaskRepository? taskRepository})
+    : taskRepository = taskRepository ?? TaskRepository();
+
   Future<List<Map<String, dynamic>>> loadTasks(String field) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
-
-    if (userEmail == null) return [];
-
-    return await db.query(
-      'tasks',
-      where: 'field = ? AND userEmail = ?',
-      whereArgs: [field, userEmail],
-      orderBy: 'id DESC',
-    );
+    return await taskRepository.loadTasks(field);
   }
 
   Future<void> addTask(String title, String field) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
-
-    if (userEmail == null) return;
-
-    await db.insert('tasks', {
-      'title': title,
-      'isCompleted': 0,
-      'field': field,
-      'userEmail': userEmail,
-    });
+    await taskRepository.addTask(title, field);
   }
 
   Future<void> toggleTask(int id, bool isCompleted) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
-
-    if (userEmail == null) return;
-
-    await db.update(
-      'tasks',
-      {'isCompleted': isCompleted ? 1 : 0},
-      where: 'id = ? AND userEmail = ?',
-      whereArgs: [id, userEmail],
-    );
+    await taskRepository.toggleTask(id, isCompleted);
   }
 
   Future<void> deleteTask(int id) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
-
-    if (userEmail == null) return;
-
-    await db.delete(
-      'tasks',
-      where: 'id = ? AND userEmail = ?',
-      whereArgs: [id, userEmail],
-    );
+    await taskRepository.deleteTask(id);
   }
 }

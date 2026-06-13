@@ -8,7 +8,9 @@ import '../controllers/session_controller.dart';
 import 'search_screen.dart';
 import 'resources_screen.dart';
 import 'theme_screen.dart';
-import '../database/db_helper.dart';
+import 'backup_screen.dart';
+import '../repositories/dashboard_repository.dart';
+import '../widgets/notebook_cover.dart';
 
 class HomeScreen extends StatefulWidget {
   final String selectedField;
@@ -21,11 +23,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final SessionController sessionController = SessionController();
+  final DashboardRepository dashboardRepository = DashboardRepository();
 
   int subjectCount = 0;
   int noteCount = 0;
   int taskCount = 0;
   int reminderCount = 0;
+  List<Map<String, dynamic>> recentSubjects = [];
 
   @override
   void initState() {
@@ -43,42 +47,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> loadDashboardCounts() async {
-    final db = await DBHelper.initDb();
-    final userEmail = await sessionController.getUserEmail();
-
-    if (userEmail == null) return;
-
-    final subjects = await db.query(
-      'subjects',
-      where: 'field = ? AND userEmail = ?',
-      whereArgs: [widget.selectedField, userEmail],
-    );
-
-    final notes = await db.query(
-      'notes',
-      where: 'field = ? AND userEmail = ?',
-      whereArgs: [widget.selectedField, userEmail],
-    );
-
-    final tasks = await db.query(
-      'tasks',
-      where: 'field = ? AND userEmail = ?',
-      whereArgs: [widget.selectedField, userEmail],
-    );
-
-    final reminders = await db.query(
-      'reminders',
-      where: 'field = ? AND userEmail = ?',
-      whereArgs: [widget.selectedField, userEmail],
-    );
+    final results = await Future.wait<dynamic>([
+      dashboardRepository.loadCounts(widget.selectedField),
+      dashboardRepository.loadRecentSubjects(widget.selectedField),
+    ]);
+    final counts = results[0] as DashboardCounts;
+    final subjects = results[1] as List<Map<String, dynamic>>;
 
     if (!mounted) return;
 
     setState(() {
-      subjectCount = subjects.length;
-      noteCount = notes.length;
-      taskCount = tasks.length;
-      reminderCount = reminders.length;
+      subjectCount = counts.subjects;
+      noteCount = counts.notes;
+      taskCount = counts.tasks;
+      reminderCount = counts.reminders;
+      recentSubjects = subjects;
     });
   }
 
@@ -96,102 +79,180 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 760;
+
+        return Scaffold(
+          appBar: isCompact
+              ? AppBar(
+                  title: const Text('My Notebook'),
+                  actions: [
+                    IconButton(
+                      tooltip: 'Refresh dashboard',
+                      onPressed: loadDashboardCounts,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                )
+              : null,
+          drawer: isCompact
+              ? Drawer(
+                  child: Builder(
+                    builder: (drawerContext) => _buildSidebar(drawerContext),
+                  ),
+                )
+              : null,
+          body: isCompact
+              ? _buildMainContent(isCompact: true)
+              : Row(
+                  children: [
+                    SizedBox(width: 220, child: _buildSidebar(context)),
+                    Expanded(child: _buildMainContent(isCompact: false)),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSidebar(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      body: Row(
+    return Material(
+      color: colorScheme.surfaceContainerHighest,
+      child: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 24),
+            const Text(
+              'My Notebook',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              widget.selectedField,
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 30),
+            _buildSidebarItem(context, Icons.home, 'Home'),
+            _buildSidebarItem(context, Icons.menu_book, 'Subjects'),
+            _buildSidebarItem(context, Icons.note, 'Notes'),
+            _buildSidebarItem(context, Icons.check_circle, 'Tasks'),
+            _buildSidebarItem(context, Icons.alarm, 'Reminders'),
+            _buildSidebarItem(context, Icons.search, 'Search'),
+            _buildSidebarItem(context, Icons.library_books, 'Resources'),
+            _buildSidebarItem(context, Icons.inventory_2_outlined, 'Backup'),
+            _buildSidebarItem(context, Icons.palette, 'Theme'),
+            const Spacer(),
+            _buildSidebarItem(context, Icons.logout, 'Logout'),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainContent({required bool isCompact}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: EdgeInsets.all(isCompact ? 16 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 220,
-            color: colorScheme.surfaceContainerHighest,
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
-                const Text(
-                  'My Notebook',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  widget.selectedField,
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-                const SizedBox(height: 30),
-                _buildSidebarItem(context, Icons.home, 'Home'),
-                _buildSidebarItem(context, Icons.menu_book, 'Subjects'),
-                _buildSidebarItem(context, Icons.note, 'Notes'),
-                _buildSidebarItem(context, Icons.check_circle, 'Tasks'),
-                _buildSidebarItem(context, Icons.alarm, 'Reminders'),
-                _buildSidebarItem(context, Icons.search, 'Search'),
-                _buildSidebarItem(context, Icons.library_books, 'Resources'),
-                _buildSidebarItem(context, Icons.palette, 'Theme'),
-                const Spacer(),
-                _buildSidebarItem(context, Icons.logout, 'Logout'),
-                const SizedBox(height: 20),
-              ],
+          Text(
+            'Welcome to My Notebook',
+            style: TextStyle(
+              fontSize: isCompact ? 24 : 28,
+              fontWeight: FontWeight.bold,
             ),
           ),
+          const SizedBox(height: 10),
+          Text(
+            'Mode: ${widget.selectedField}',
+            style: const TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+          SizedBox(height: isCompact ? 18 : 30),
+          _buildSummaryCards(isCompact: isCompact),
+          SizedBox(height: isCompact ? 18 : 30),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Welcome to My Notebook',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Mode: ${widget.selectedField}',
-                    style: const TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 30),
-                  Row(
-                    children: [
-                      _buildSummaryCard(
-                        'Subjects',
-                        subjectCount.toString(),
-                        Icons.menu_book,
-                      ),
-                      const SizedBox(width: 20),
-                      _buildSummaryCard(
-                        'Notes',
-                        noteCount.toString(),
-                        Icons.note,
-                      ),
-                      const SizedBox(width: 20),
-                      _buildSummaryCard(
-                        'Tasks',
-                        taskCount.toString(),
-                        Icons.check_circle,
-                      ),
-                      const SizedBox(width: 20),
-                      _buildSummaryCard(
-                        'Reminders',
-                        reminderCount.toString(),
-                        Icons.alarm,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 30),
-                  Expanded(
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: _buildDashboardContent(widget.selectedField),
-                    ),
-                  ),
-                ],
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(isCompact ? 18 : 24),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildDashboardContent(widget.selectedField),
+                    const SizedBox(height: 24),
+                    _buildQuickActions(),
+                    const SizedBox(height: 24),
+                    _buildRecentShelf(),
+                  ],
+                ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSummaryCards({required bool isCompact}) {
+    final cards = [
+      _buildSummaryCard(
+        'Subjects',
+        subjectCount.toString(),
+        Icons.menu_book,
+        expanded: !isCompact,
+      ),
+      _buildSummaryCard(
+        'Notes',
+        noteCount.toString(),
+        Icons.note,
+        expanded: !isCompact,
+      ),
+      _buildSummaryCard(
+        'Tasks',
+        taskCount.toString(),
+        Icons.check_circle,
+        expanded: !isCompact,
+      ),
+      _buildSummaryCard(
+        'Reminders',
+        reminderCount.toString(),
+        Icons.alarm,
+        expanded: !isCompact,
+      ),
+    ];
+
+    if (isCompact) {
+      return GridView.count(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.15,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: cards,
+      );
+    }
+
+    return Row(
+      children: [
+        cards[0],
+        const SizedBox(width: 20),
+        cards[1],
+        const SizedBox(width: 20),
+        cards[2],
+        const SizedBox(width: 20),
+        cards[3],
+      ],
     );
   }
 
@@ -375,98 +436,253 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildQuickActions() {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        _buildActionChip(Icons.menu_book, 'Subjects', () {
+          _openSubjects();
+        }),
+        _buildActionChip(Icons.note_add, 'Notes', () {
+          _openNotes();
+        }),
+        _buildActionChip(Icons.library_books, 'Resources', () {
+          _openResources();
+        }),
+        _buildActionChip(Icons.inventory_2_outlined, 'Backup', () {
+          _openBackup();
+        }),
+      ],
+    );
+  }
+
+  Widget _buildActionChip(IconData icon, String label, VoidCallback onTap) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ActionChip(
+      avatar: Icon(icon, size: 18, color: colorScheme.primary),
+      label: Text(label),
+      onPressed: onTap,
+      backgroundColor: colorScheme.surface,
+      shape: StadiumBorder(side: BorderSide(color: colorScheme.outlineVariant)),
+    );
+  }
+
+  Widget _buildRecentShelf() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Notebook Shelf',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _openSubjects,
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: const Text('Open'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (recentSubjects.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colorScheme.outlineVariant),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.auto_stories, color: colorScheme.primary),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Create your first subject to start building the shelf.',
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            height: 166,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: recentSubjects.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                final subject = recentSubjects[index];
+                final title = subject['title']?.toString() ?? '';
+
+                return SizedBox(
+                  width: 118,
+                  child: NotebookCover(
+                    title: title,
+                    subtitle: widget.selectedField,
+                    cover: NotebookCoverStyles.fromSubject(subject),
+                    height: 158,
+                    compact: true,
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _openSubjects() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            SubjectsScreen(selectedField: widget.selectedField),
+      ),
+    );
+    loadDashboardCounts();
+  }
+
+  Future<void> _openNotes() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NotesScreen(selectedField: widget.selectedField),
+      ),
+    );
+    loadDashboardCounts();
+  }
+
+  Future<void> _openTasks() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TasksScreen(selectedField: widget.selectedField),
+      ),
+    );
+    loadDashboardCounts();
+  }
+
+  Future<void> _openReminders() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            RemindersScreen(selectedField: widget.selectedField),
+      ),
+    );
+    loadDashboardCounts();
+  }
+
+  Future<void> _openSearch() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SearchScreen(selectedField: widget.selectedField),
+      ),
+    );
+  }
+
+  Future<void> _openResources() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            ResourcesScreen(selectedField: widget.selectedField),
+      ),
+    );
+  }
+
+  Future<void> _openBackup() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BackupScreen(selectedField: widget.selectedField),
+      ),
+    );
+  }
+
   Widget _buildSidebarItem(BuildContext context, IconData icon, String title) {
     return ListTile(
       leading: Icon(icon),
       title: Text(title),
       onTap: () async {
-        if (title == 'Subjects') {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  SubjectsScreen(selectedField: widget.selectedField),
-            ),
-          );
+        final navigationContext = this.context;
+        final scaffold = Scaffold.maybeOf(context);
+        final shouldCloseDrawer = scaffold?.isDrawerOpen ?? false;
+
+        if (shouldCloseDrawer) {
+          Navigator.pop(context);
+        }
+
+        if (title == 'Home') {
           loadDashboardCounts();
+        } else if (title == 'Subjects') {
+          await _openSubjects();
         } else if (title == 'Notes') {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  NotesScreen(selectedField: widget.selectedField),
-            ),
-          );
-          loadDashboardCounts();
+          await _openNotes();
         } else if (title == 'Tasks') {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  TasksScreen(selectedField: widget.selectedField),
-            ),
-          );
-          loadDashboardCounts();
+          await _openTasks();
         } else if (title == 'Reminders') {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  RemindersScreen(selectedField: widget.selectedField),
-            ),
-          );
-          loadDashboardCounts();
+          await _openReminders();
         } else if (title == 'Search') {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  SearchScreen(selectedField: widget.selectedField),
-            ),
-          );
+          await _openSearch();
         } else if (title == 'Resources') {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  ResourcesScreen(selectedField: widget.selectedField),
-            ),
-          );
+          await _openResources();
+        } else if (title == 'Backup') {
+          await _openBackup();
         } else if (title == 'Theme') {
           await Navigator.push(
-            context,
+            navigationContext,
             MaterialPageRoute(builder: (context) => const ThemeScreen()),
           );
         } else if (title == 'Logout') {
-          logout(context);
+          logout(navigationContext);
         }
       },
     );
   }
 
-  Widget _buildSummaryCard(String title, String count, IconData icon) {
+  Widget _buildSummaryCard(
+    String title,
+    String count,
+    IconData icon, {
+    bool expanded = true,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 32, color: colorScheme.primary),
-            const SizedBox(height: 10),
-            Text(
-              count,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 5),
-            Text(title),
-          ],
-        ),
+    final card = Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 32, color: colorScheme.primary),
+          const SizedBox(height: 10),
+          Text(
+            count,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 5),
+          Text(title),
+        ],
       ),
     );
+
+    if (!expanded) return card;
+
+    return Expanded(child: card);
   }
 }

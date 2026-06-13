@@ -33,8 +33,12 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
   double selectedEraserWidth = 24.0;
 
   List<DrawingStroke> strokes = [];
+  List<NotePageElement> pageElements = [];
   DrawingStroke? currentStroke;
   Offset? eraserPreviewPoint;
+  int nextPageElementId = 1;
+  int nextStickyColorIndex = 0;
+  final Map<int, TextEditingController> pageElementControllers = {};
 
   final List<Color> penColors = [
     Colors.black,
@@ -48,6 +52,31 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
 
   final List<double> strokeWidths = [2.0, 4.0, 6.0, 8.0];
   final List<double> eraserWidths = [12.0, 24.0, 36.0, 52.0];
+  final List<Color> stickyColors = const [
+    Color(0xFFFFF3A3),
+    Color(0xFFFFC9DE),
+    Color(0xFFC9EDFF),
+    Color(0xFFD7F7C2),
+    Color(0xFFFFD6A5),
+  ];
+  final List<String> stickerOptions = const [
+    '⭐',
+    '💡',
+    '✅',
+    '❗',
+    '📌',
+    '🎯',
+    '🧠',
+    '🔥',
+    '❤️',
+    '⚠️',
+    '❓',
+    '📚',
+    '✨',
+    '🔖',
+    '📝',
+    '📎',
+  ];
 
   @override
   void initState() {
@@ -56,7 +85,7 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
   }
 
   String encodeStrokes() {
-    final encoded = strokes.map((stroke) {
+    final encodedStrokes = strokes.map((stroke) {
       return {
         'color': stroke.color.toARGB32(),
         'width': stroke.strokeWidth,
@@ -67,15 +96,20 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
       };
     }).toList();
 
-    return jsonEncode(encoded);
+    return jsonEncode({
+      'version': 2,
+      'strokes': encodedStrokes,
+      'pageElements': pageElements.map((element) => element.toJson()).toList(),
+    });
   }
 
   List<DrawingStroke> decodeStrokes(String drawingData) {
-    final decoded = jsonDecode(drawingData);
+    final decoded = decodeDrawingPayload(drawingData);
+    final strokeData = decoded is Map ? decoded['strokes'] : decoded;
 
-    if (decoded is! List) return [];
+    if (strokeData is! List) return [];
 
-    return decoded.map<DrawingStroke>((stroke) {
+    return strokeData.map<DrawingStroke>((stroke) {
       // New format
       if (stroke is Map) {
         final pointsData = stroke['points'] as List;
@@ -117,6 +151,30 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
     }).toList();
   }
 
+  List<NotePageElement> decodePageElements(String drawingData) {
+    final decoded = decodeDrawingPayload(drawingData);
+
+    if (decoded is! Map) return [];
+
+    final elementData = decoded['pageElements'];
+
+    if (elementData is! List) return [];
+
+    return elementData
+        .whereType<Map>()
+        .map((element) => NotePageElement.fromJson(element))
+        .whereType<NotePageElement>()
+        .toList();
+  }
+
+  Object? decodeDrawingPayload(String drawingData) {
+    try {
+      return jsonDecode(drawingData);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> loadSavedNote() async {
     final result = await noteDbController.loadNote(
       widget.subjectTitle,
@@ -129,8 +187,19 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
       final savedDrawing = result['drawing'] as String?;
 
       if (savedDrawing != null && savedDrawing.isNotEmpty) {
+        final loadedElements = decodePageElements(savedDrawing);
+
         setState(() {
           strokes = decodeStrokes(savedDrawing);
+          pageElements = loadedElements;
+          nextPageElementId = loadedElements.isEmpty
+              ? 1
+              : loadedElements.fold<int>(
+                      0,
+                      (highestId, element) =>
+                          math.max(highestId, element.id).toInt(),
+                    ) +
+                    1;
         });
       }
     }
@@ -158,11 +227,9 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
       return;
     }
 
-    if (selectedTool != 'Pen' && selectedTool != 'Highlighter') return;
+    if (selectedTool != 'Pen') return;
 
-    final penType = selectedTool == 'Highlighter'
-        ? PenTypeCatalog.byLabel(PenTypeCatalog.highlighterLabel)
-        : PenTypeCatalog.byLabel(selectedPenType);
+    final penType = PenTypeCatalog.byLabel(selectedPenType);
     final strokeColor = selectedPenColor.withValues(alpha: penType.opacity);
     final width = selectedStrokeWidth * penType.widthMultiplier;
 
@@ -326,6 +393,158 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
     });
   }
 
+  void addStickyNote() {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    final color = stickyColors[nextStickyColorIndex % stickyColors.length];
+
+    setState(() {
+      selectedTool = 'Text';
+      showPenTray = false;
+      nextStickyColorIndex++;
+      pageElements.add(
+        NotePageElement(
+          id: nextPageElementId++,
+          type: NotePageElementType.sticky,
+          position: Offset(36 + (pageElements.length % 3) * 24, 42),
+          size: const Size(190, 150),
+          text: 'New note',
+          color: color,
+        ),
+      );
+    });
+  }
+
+  Future<void> showStickerPicker() async {
+    final selectedSticker = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+
+        return Dialog(
+          insetPadding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Choose Sticker',
+                        style: Theme.of(dialogContext).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    itemCount: stickerOptions.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 8,
+                          mainAxisSpacing: 8,
+                          crossAxisSpacing: 8,
+                        ),
+                    itemBuilder: (context, index) {
+                      final sticker = stickerOptions[index];
+
+                      return InkWell(
+                        onTap: () => Navigator.of(dialogContext).pop(sticker),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: colorScheme.outlineVariant,
+                            ),
+                          ),
+                          child: Text(
+                            sticker,
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selectedSticker == null) return;
+
+    addSticker(selectedSticker);
+  }
+
+  void addSticker(String sticker) {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    setState(() {
+      selectedTool = 'Text';
+      showPenTray = false;
+      pageElements.add(
+        NotePageElement(
+          id: nextPageElementId++,
+          type: NotePageElementType.sticker,
+          position: Offset(70 + (pageElements.length % 4) * 18, 70),
+          size: const Size(70, 70),
+          text: sticker,
+          color: Colors.transparent,
+        ),
+      );
+    });
+  }
+
+  void movePageElement(
+    NotePageElement element,
+    DragUpdateDetails details,
+    Size canvasSize,
+  ) {
+    setState(() {
+      element.position = clampElementPosition(
+        element.position + details.delta,
+        canvasSize,
+        element.size,
+      );
+    });
+  }
+
+  Offset clampElementPosition(Offset position, Size canvasSize, Size itemSize) {
+    final maxX = math.max(0.0, canvasSize.width - itemSize.width);
+    final maxY = math.max(0.0, canvasSize.height - itemSize.height);
+
+    return Offset(position.dx.clamp(0.0, maxX), position.dy.clamp(0.0, maxY));
+  }
+
+  void deletePageElement(NotePageElement element) {
+    setState(() {
+      pageElements.removeWhere((item) => item.id == element.id);
+      pageElementControllers.remove(element.id)?.dispose();
+    });
+  }
+
+  TextEditingController controllerForPageElement(NotePageElement element) {
+    return pageElementControllers.putIfAbsent(
+      element.id,
+      () => TextEditingController(text: element.text),
+    );
+  }
+
   List<String> getTemplates() {
     if (widget.subjectTitle.toLowerCase().contains('data structure')) {
       return ['Algorithm', 'Pseudocode', 'Diagram', 'Revision'];
@@ -358,12 +577,6 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
 
           if (label == 'Pen') {
             showPenTray = true;
-            if (selectedPenType == PenTypeCatalog.highlighterLabel) {
-              selectedPenType = PenTypeCatalog.defaultLabel;
-            }
-          } else if (label == 'Highlighter') {
-            showPenTray = true;
-            selectedPenType = PenTypeCatalog.highlighterLabel;
           } else {
             showPenTray = false;
           }
@@ -391,32 +604,53 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
     );
   }
 
+  Widget buildActionButton(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Text(label),
+          ],
+        ),
+      ),
+    );
+  }
+
   void selectPenType(PenTypeOption option) {
     FocusManager.instance.primaryFocus?.unfocus();
 
     setState(() {
       selectedPenType = option.label;
       showPenTray = true;
-      selectedTool = option.label == PenTypeCatalog.highlighterLabel
-          ? 'Highlighter'
-          : 'Pen';
+      selectedTool = 'Pen';
     });
   }
 
   Widget buildPenTray(ColorScheme colorScheme) {
     return Container(
-      height: 104,
+      height: 86,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF202126),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: colorScheme.shadow.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -426,7 +660,7 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
           children: [
             for (final option in PenTypeCatalog.options) ...[
               buildPenTrayItem(option, colorScheme),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
             ],
           ],
         ),
@@ -444,17 +678,17 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          width: 74,
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
+          width: 62,
+          padding: const EdgeInsets.fromLTRB(6, 5, 6, 6),
           decoration: BoxDecoration(
             color: isSelected
-                ? colorScheme.primary.withValues(alpha: 0.18)
+                ? colorScheme.primaryContainer.withValues(alpha: 0.72)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isSelected
                   ? colorScheme.primary
-                  : Colors.white.withValues(alpha: 0.08),
+                  : colorScheme.outlineVariant.withValues(alpha: 0.58),
             ),
           ),
           child: Column(
@@ -473,9 +707,9 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: isSelected
-                      ? colorScheme.primaryContainer
-                      : Colors.white70,
-                  fontSize: 10.5,
+                      ? colorScheme.onPrimaryContainer
+                      : colorScheme.onSurfaceVariant,
+                  fontSize: 9.5,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
@@ -539,6 +773,11 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
 
   Widget buildStrokeButton(double width) {
     final isEraser = selectedTool == 'Eraser';
+
+    if (isEraser) {
+      return buildEraserSizeButton(width);
+    }
+
     final isSelected = isEraser
         ? selectedEraserWidth == width
         : selectedStrokeWidth == width;
@@ -569,8 +808,252 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
     );
   }
 
+  Widget buildEraserSizeButton(double width) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isSelected = selectedEraserWidth == width;
+    final diameter = width.clamp(12.0, 42.0);
+
+    return Tooltip(
+      message: '${width.toInt()} px eraser',
+      child: Semantics(
+        label: '${width.toInt()} pixel eraser',
+        selected: isSelected,
+        button: true,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              selectedEraserWidth = width;
+            });
+          },
+          borderRadius: BorderRadius.circular(18),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            margin: const EdgeInsets.only(right: 10),
+            width: 58,
+            height: 50,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? colorScheme.primaryContainer.withValues(alpha: 0.72)
+                  : colorScheme.surfaceContainerHighest.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isSelected
+                    ? colorScheme.primary
+                    : colorScheme.outlineVariant,
+              ),
+            ),
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: diameter,
+                height: diameter,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected
+                      ? colorScheme.primary.withValues(alpha: 0.16)
+                      : colorScheme.onSurfaceVariant.withValues(alpha: 0.08),
+                  border: Border.all(
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.onSurfaceVariant.withValues(alpha: 0.52),
+                    width: isSelected ? 2 : 1.3,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget buildPageElement(NotePageElement element, Size canvasSize) {
+    return switch (element.type) {
+      NotePageElementType.sticky => buildStickyNote(element, canvasSize),
+      NotePageElementType.sticker => buildSticker(element, canvasSize),
+    };
+  }
+
+  Widget buildStickyNote(NotePageElement element, Size canvasSize) {
+    final controller = controllerForPageElement(element);
+    final position = clampElementPosition(
+      element.position,
+      canvasSize,
+      element.size,
+    );
+
+    return Positioned(
+      left: position.dx,
+      top: position.dy,
+      width: element.size.width,
+      height: element.size.height,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: element.color,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.14),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanUpdate: (details) {
+                  movePageElement(element, details, canvasSize);
+                },
+                child: Container(
+                  height: 34,
+                  padding: const EdgeInsets.only(left: 10, right: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.28),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(8),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.drag_indicator, size: 17),
+                      const SizedBox(width: 4),
+                      const Expanded(
+                        child: Text(
+                          'Sticky',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Delete sticky note',
+                        onPressed: () => deletePageElement(element),
+                        icon: const Icon(Icons.close, size: 16),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 30,
+                          height: 30,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+                  child: TextField(
+                    controller: controller,
+                    onChanged: (value) {
+                      element.text = value;
+                    },
+                    maxLines: null,
+                    expands: true,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isCollapsed: true,
+                      hintText: 'Write here...',
+                    ),
+                    style: const TextStyle(
+                      color: Color(0xFF2E2A1F),
+                      fontSize: 14,
+                      height: 1.25,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget buildSticker(NotePageElement element, Size canvasSize) {
+    final position = clampElementPosition(
+      element.position,
+      canvasSize,
+      element.size,
+    );
+
+    return Positioned(
+      left: position.dx,
+      top: position.dy,
+      width: element.size.width,
+      height: element.size.height,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanUpdate: (details) {
+          movePageElement(element, details, canvasSize);
+        },
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Center(
+              child: Container(
+                width: element.size.width,
+                height: element.size.height,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.78),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.black.withValues(alpha: 0.07),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  element.text,
+                  style: TextStyle(fontSize: element.size.width * 0.5),
+                ),
+              ),
+            ),
+            Positioned(
+              right: -6,
+              top: -6,
+              child: Material(
+                color: Colors.white,
+                shape: const CircleBorder(),
+                elevation: 2,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => deletePageElement(element),
+                  child: const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Icon(Icons.close, size: 14),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    for (final controller in pageElementControllers.values) {
+      controller.dispose();
+    }
+
     noteController.dispose();
     super.dispose();
   }
@@ -598,11 +1081,21 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
                 children: [
                   buildToolButton(Icons.edit, 'Pen'),
                   const SizedBox(width: 10),
-                  buildToolButton(Icons.highlight, 'Highlighter'),
-                  const SizedBox(width: 10),
                   buildToolButton(Icons.auto_fix_off, 'Eraser'),
                   const SizedBox(width: 10),
                   buildToolButton(Icons.text_fields, 'Text'),
+                  const SizedBox(width: 10),
+                  buildActionButton(
+                    Icons.sticky_note_2_outlined,
+                    'Sticky',
+                    addStickyNote,
+                  ),
+                  const SizedBox(width: 10),
+                  buildActionButton(
+                    Icons.emoji_emotions_outlined,
+                    'Sticker',
+                    showStickerPicker,
+                  ),
                   const SizedBox(width: 10),
                   buildToolButton(Icons.undo, 'Undo'),
                   const SizedBox(width: 10),
@@ -666,73 +1159,84 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: Stack(
-                  children: [
-                    if (widget.noteType == 'Lined Note')
-                      CustomPaint(
-                        size: Size.infinite,
-                        painter: LinedPagePainter(),
-                      ),
-                    if (widget.noteType == 'Grid Note')
-                      CustomPaint(
-                        size: Size.infinite,
-                        painter: GridPagePainter(),
-                      ),
-                    CustomPaint(
-                      size: Size.infinite,
-                      painter: DrawingPainter(strokes),
-                    ),
-                    if (selectedTool == 'Eraser' && eraserPreviewPoint != null)
-                      CustomPaint(
-                        size: Size.infinite,
-                        painter: EraserPreviewPainter(
-                          center: eraserPreviewPoint!,
-                          diameter: selectedEraserWidth,
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                    IgnorePointer(
-                      ignoring: selectedTool != 'Text',
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: TextField(
-                          controller: noteController,
-                          maxLines: null,
-                          expands: true,
-                          keyboardType: TextInputType.multiline,
-                          textInputAction: TextInputAction.newline,
-                          enableSuggestions: true,
-                          autocorrect: true,
-                          decoration: InputDecoration(
-                            border: InputBorder.none,
-                            hintText: noteController.text.isEmpty
-                                ? 'Write your $selectedTemplate note...'
-                                : null,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final canvasSize = Size(
+                      constraints.maxWidth,
+                      constraints.maxHeight,
+                    );
+
+                    return Stack(
+                      children: [
+                        if (widget.noteType == 'Lined Note')
+                          CustomPaint(
+                            size: Size.infinite,
+                            painter: LinedPagePainter(),
                           ),
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: selectedPenColor,
+                        if (widget.noteType == 'Grid Note')
+                          CustomPaint(
+                            size: Size.infinite,
+                            painter: GridPagePainter(),
+                          ),
+                        CustomPaint(
+                          size: Size.infinite,
+                          painter: DrawingPainter(strokes),
+                        ),
+                        if (selectedTool == 'Eraser' &&
+                            eraserPreviewPoint != null)
+                          CustomPaint(
+                            size: Size.infinite,
+                            painter: EraserPreviewPainter(
+                              center: eraserPreviewPoint!,
+                              diameter: selectedEraserWidth,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        IgnorePointer(
+                          ignoring: selectedTool != 'Text',
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: TextField(
+                              controller: noteController,
+                              maxLines: null,
+                              expands: true,
+                              keyboardType: TextInputType.multiline,
+                              textInputAction: TextInputAction.newline,
+                              enableSuggestions: true,
+                              autocorrect: true,
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                hintText: noteController.text.isEmpty
+                                    ? 'Write your $selectedTemplate note...'
+                                    : null,
+                              ),
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: selectedPenColor,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    if (selectedTool == 'Pen' ||
-                        selectedTool == 'Highlighter' ||
-                        selectedTool == 'Eraser')
-                      GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onPanStart: (details) {
-                          startStroke(details.localPosition);
-                        },
-                        onPanUpdate: (details) {
-                          updateStroke(details.localPosition);
-                        },
-                        onPanEnd: (_) {
-                          endStroke();
-                        },
-                        child: Container(),
-                      ),
-                  ],
+                        if (selectedTool == 'Pen' || selectedTool == 'Eraser')
+                          GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onPanStart: (details) {
+                              startStroke(details.localPosition);
+                            },
+                            onPanUpdate: (details) {
+                              updateStroke(details.localPosition);
+                            },
+                            onPanEnd: (_) {
+                              endStroke();
+                            },
+                            child: Container(),
+                          ),
+                        ...pageElements.map(
+                          (element) => buildPageElement(element, canvasSize),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -1242,6 +1746,73 @@ class PenCaseIconPainter extends CustomPainter {
     return oldDelegate.option != option ||
         oldDelegate.selectedColor != selectedColor ||
         oldDelegate.isSelected != isSelected;
+  }
+}
+
+enum NotePageElementType { sticky, sticker }
+
+class NotePageElement {
+  final int id;
+  final NotePageElementType type;
+  Offset position;
+  Size size;
+  String text;
+  Color color;
+
+  NotePageElement({
+    required this.id,
+    required this.type,
+    required this.position,
+    required this.size,
+    required this.text,
+    required this.color,
+  });
+
+  Map<String, Object?> toJson() {
+    return {
+      'id': id,
+      'type': type.name,
+      'x': position.dx,
+      'y': position.dy,
+      'width': size.width,
+      'height': size.height,
+      'text': text,
+      'color': color.toARGB32(),
+    };
+  }
+
+  static NotePageElement? fromJson(Map<dynamic, dynamic> data) {
+    final id = data['id'];
+    final typeValue = data['type'];
+    final x = data['x'];
+    final y = data['y'];
+    final width = data['width'];
+    final height = data['height'];
+    final text = data['text'];
+    final colorValue = data['color'];
+
+    if (id is! num ||
+        typeValue is! String ||
+        x is! num ||
+        y is! num ||
+        width is! num ||
+        height is! num) {
+      return null;
+    }
+
+    final type = NotePageElementType.values.firstWhere(
+      (value) => value.name == typeValue,
+      orElse: () => NotePageElementType.sticky,
+    );
+
+    return NotePageElement(
+      id: id.toInt(),
+      type: type,
+      position: Offset(x.toDouble(), y.toDouble()),
+      size: Size(width.toDouble(), height.toDouble()),
+      text: text?.toString() ?? '',
+      color: colorValue is int ? Color(colorValue) : const Color(0xFFFFF3A3),
+    );
   }
 }
 

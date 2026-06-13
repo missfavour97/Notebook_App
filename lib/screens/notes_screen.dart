@@ -3,6 +3,7 @@ import '../controllers/note_controller.dart';
 import '../controllers/subject_controller.dart';
 import '../widgets/notebook_cover.dart';
 import 'subject_note_screen.dart';
+import 'subjects_screen.dart';
 
 class NotesScreen extends StatefulWidget {
   final String selectedField;
@@ -152,14 +153,70 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  Future<void> openSubjects() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            SubjectsScreen(selectedField: widget.selectedField),
+      ),
+    );
+
+    loadNotes();
+  }
+
+  Widget buildEmptyState() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 112,
+              height: 82,
+              decoration: BoxDecoration(
+                color: colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(
+                Icons.edit_note,
+                size: 46,
+                color: colorScheme.onSecondaryContainer,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'No pages yet',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.selectedField,
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: openSubjects,
+              icon: const Icon(Icons.menu_book),
+              label: const Text('Open subjects'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('${widget.selectedField} Notes')),
       body: notes.isEmpty
-          ? const Center(
-              child: Text('No notes added yet', style: TextStyle(fontSize: 18)),
-            )
+          ? buildEmptyState()
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: notes.length,

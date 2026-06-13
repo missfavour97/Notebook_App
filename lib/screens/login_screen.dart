@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../database/db_helper.dart';
 import 'field_selection_screen.dart';
 import 'signup_screen.dart';
 import 'home_screen.dart';
@@ -30,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (isValidUser) {
       await sessionController.saveLoginSession(email);
-      await DBHelper.claimLegacyData(email);
+      await authController.claimLegacyData(email);
 
       final savedField = await sessionController.getSavedField(email);
 

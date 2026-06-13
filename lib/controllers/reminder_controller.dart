@@ -1,18 +1,13 @@
-import '../database/db_helper.dart';
+import '../repositories/reminder_repository.dart';
 
 class ReminderController {
+  final ReminderRepository reminderRepository;
+
+  ReminderController({ReminderRepository? reminderRepository})
+    : reminderRepository = reminderRepository ?? ReminderRepository();
+
   Future<List<Map<String, dynamic>>> loadReminders(String field) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
-
-    if (userEmail == null) return [];
-
-    return await db.query(
-      'reminders',
-      where: 'field = ? AND userEmail = ?',
-      whereArgs: [field, userEmail],
-      orderBy: 'reminderDate ASC',
-    );
+    return await reminderRepository.loadReminders(field);
   }
 
   Future<void> addReminder(
@@ -20,29 +15,10 @@ class ReminderController {
     String reminderDate,
     String field,
   ) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
-
-    if (userEmail == null) return;
-
-    await db.insert('reminders', {
-      'title': title,
-      'reminderDate': reminderDate,
-      'field': field,
-      'userEmail': userEmail,
-    });
+    await reminderRepository.addReminder(title, reminderDate, field);
   }
 
   Future<void> deleteReminder(int id) async {
-    final db = await DBHelper.initDb();
-    final userEmail = await DBHelper.currentUserEmail();
-
-    if (userEmail == null) return;
-
-    await db.delete(
-      'reminders',
-      where: 'id = ? AND userEmail = ?',
-      whereArgs: [id, userEmail],
-    );
+    await reminderRepository.deleteReminder(id);
   }
 }
