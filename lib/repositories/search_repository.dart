@@ -73,8 +73,8 @@ class SearchRepository {
       ...notes.map(
         (item) => {
           'type': 'Note',
-          'title': item['subject'],
-          'subtitle': item['content'],
+          'title': item['title'] ?? item['subject'],
+          'subtitle': '${item['subject'] ?? ''} • ${item['content'] ?? ''}',
         },
       ),
       ...tasks.map(

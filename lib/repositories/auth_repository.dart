@@ -8,7 +8,8 @@ class AuthRepository {
   AuthRepository({UserDao? userDao}) : userDao = userDao ?? UserDao();
 
   Future<bool> loginUser(String email, String password) async {
-    final user = await userDao.findByEmail(email);
+    final normalizedEmail = email.trim().toLowerCase();
+    final user = await userDao.findByEmail(normalizedEmail);
 
     if (user == null) return false;
 
@@ -29,7 +30,8 @@ class AuthRepository {
   }
 
   Future<bool> registerUser(String name, String email, String password) async {
-    final existingUser = await userDao.findByEmail(email);
+    final normalizedEmail = email.trim().toLowerCase();
+    final existingUser = await userDao.findByEmail(normalizedEmail);
 
     if (existingUser != null) {
       return false;
@@ -37,8 +39,22 @@ class AuthRepository {
 
     await userDao.insertUser(
       name: name,
-      email: email,
+      email: normalizedEmail,
       password: PasswordHasher.hashPassword(password),
+    );
+
+    return true;
+  }
+
+  Future<bool> resetPassword(String email, String newPassword) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final user = await userDao.findByEmail(normalizedEmail);
+
+    if (user == null) return false;
+
+    await userDao.updatePassword(
+      user['id'] as int,
+      PasswordHasher.hashPassword(newPassword),
     );
 
     return true;

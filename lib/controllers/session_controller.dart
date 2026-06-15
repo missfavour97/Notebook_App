@@ -1,11 +1,16 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SessionController {
-  Future<void> saveLoginSession(String email) async {
+  Future<void> saveLoginSession(String email, {bool rememberMe = true}) async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setBool('isLoggedIn', true);
+    await prefs.setBool('isLoggedIn', rememberMe);
+    await prefs.setBool('rememberMe', rememberMe);
     await prefs.setString('userEmail', email);
+
+    if (rememberMe) {
+      await prefs.setString('rememberedEmail', email);
+    }
   }
 
   Future<void> saveSelectedField(String email, String field) async {
@@ -23,7 +28,22 @@ class SessionController {
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
 
-    return prefs.getBool('isLoggedIn') ?? false;
+    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    final rememberMe = prefs.getBool('rememberMe') ?? false;
+
+    return isLoggedIn && rememberMe;
+  }
+
+  Future<bool> shouldRememberUser() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getBool('rememberMe') ?? false;
+  }
+
+  Future<String?> getRememberedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getString('rememberedEmail');
   }
 
   Future<String?> getUserEmail() async {

@@ -23,7 +23,7 @@ class DBHelper {
   static Future<Database> _openDb() async {
     return await openDatabase(
       join(await getDatabasesPath(), 'notebook.db'),
-      version: 10,
+      version: 11,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE users(
@@ -48,13 +48,15 @@ class DBHelper {
         await db.execute('''
           CREATE TABLE notes(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
             subject TEXT,
             field TEXT,
             content TEXT,
             noteType TEXT,
             drawing TEXT,
             userEmail TEXT,
-            UNIQUE(subject, field, userEmail)
+            createdAt TEXT,
+            updatedAt TEXT
           )
         ''');
 
@@ -142,23 +144,28 @@ class DBHelper {
       await db.execute('''
         CREATE TABLE notes(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT,
           subject TEXT,
           field TEXT,
           content TEXT,
           noteType TEXT,
           drawing TEXT,
           userEmail TEXT,
-          UNIQUE(subject, field, userEmail)
+          createdAt TEXT,
+          updatedAt TEXT
         )
       ''');
       return;
     }
 
+    await _addColumnIfMissing(db, _notesTable, 'title TEXT');
     await _addColumnIfMissing(db, _notesTable, 'field TEXT');
     await _addColumnIfMissing(db, _notesTable, 'drawing TEXT');
     await _addColumnIfMissing(db, _notesTable, 'noteType TEXT');
     await _addColumnIfMissing(db, _notesTable, 'content TEXT');
     await _addColumnIfMissing(db, _notesTable, 'userEmail TEXT');
+    await _addColumnIfMissing(db, _notesTable, 'createdAt TEXT');
+    await _addColumnIfMissing(db, _notesTable, 'updatedAt TEXT');
 
     final createSql = await _createSql(db, _notesTable);
     final normalizedSql = (createSql ?? '').toLowerCase().replaceAll(
@@ -169,7 +176,7 @@ class DBHelper {
       'unique(subject,field,useremail)',
     );
 
-    if (!hasUserScopedUnique) {
+    if (hasUserScopedUnique) {
       await _rebuildNotesTable(db);
     }
   }
@@ -259,34 +266,42 @@ class DBHelper {
       await txn.execute('''
         CREATE TABLE notes_migration(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT,
           subject TEXT,
           field TEXT,
           content TEXT,
           noteType TEXT,
           drawing TEXT,
           userEmail TEXT,
-          UNIQUE(subject, field, userEmail)
+          createdAt TEXT,
+          updatedAt TEXT
         )
       ''');
 
       await txn.execute('''
-        INSERT OR IGNORE INTO notes_migration(
+        INSERT INTO notes_migration(
           id,
+          title,
           subject,
           field,
           content,
           noteType,
           drawing,
-          userEmail
+          userEmail,
+          createdAt,
+          updatedAt
         )
         SELECT
           id,
+          COALESCE(NULLIF(title, ''), COALESCE(NULLIF(noteType, ''), 'Untitled Note')),
           subject,
           field,
           content,
           noteType,
           drawing,
-          userEmail
+          userEmail,
+          COALESCE(createdAt, datetime('now')),
+          COALESCE(updatedAt, createdAt, datetime('now'))
         FROM notes
       ''');
 

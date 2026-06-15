@@ -4,12 +4,16 @@ import 'package:flutter/material.dart';
 import '../controllers/note_controller.dart';
 
 class SubjectNoteScreen extends StatefulWidget {
+  final int? noteId;
+  final String? noteTitle;
   final String subjectTitle;
   final String selectedField;
   final String noteType;
 
   const SubjectNoteScreen({
     super.key,
+    this.noteId,
+    this.noteTitle,
     required this.subjectTitle,
     required this.selectedField,
     required this.noteType,
@@ -36,6 +40,11 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
   List<NotePageElement> pageElements = [];
   DrawingStroke? currentStroke;
   Offset? eraserPreviewPoint;
+  int? currentNoteId;
+  late String currentNoteTitle;
+  String savedContent = '';
+  String savedDrawingSignature = '';
+  bool allowRoutePop = false;
   int nextPageElementId = 1;
   int nextStickyColorIndex = 0;
   final Map<int, TextEditingController> pageElementControllers = {};
@@ -81,7 +90,16 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
   @override
   void initState() {
     super.initState();
+    currentNoteId = widget.noteId;
+    currentNoteTitle = widget.noteTitle ?? widget.noteType;
+    noteController.addListener(handleNoteTextChanged);
     loadSavedNote();
+  }
+
+  void handleNoteTextChanged() {
+    if (!mounted) return;
+
+    setState(() {});
   }
 
   String encodeStrokes() {
@@ -101,6 +119,25 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
       'strokes': encodedStrokes,
       'pageElements': pageElements.map((element) => element.toJson()).toList(),
     });
+  }
+
+  String currentDrawingSignature() {
+    return encodeStrokes();
+  }
+
+  bool get hasMeaningfulContent {
+    return noteController.text.trim().isNotEmpty ||
+        strokes.isNotEmpty ||
+        pageElements.isNotEmpty;
+  }
+
+  bool get hasUnsavedChanges {
+    return noteController.text != savedContent ||
+        currentDrawingSignature() != savedDrawingSignature;
+  }
+
+  bool get shouldConfirmExit {
+    return hasUnsavedChanges && hasMeaningfulContent;
   }
 
   List<DrawingStroke> decodeStrokes(String drawingData) {
@@ -176,13 +213,23 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
   }
 
   Future<void> loadSavedNote() async {
-    final result = await noteDbController.loadNote(
-      widget.subjectTitle,
-      widget.selectedField,
-    );
+    final result = currentNoteId == null
+        ? await noteDbController.loadNote(
+            widget.subjectTitle,
+            widget.selectedField,
+          )
+        : await noteDbController.loadNoteById(currentNoteId!);
 
     if (result != null) {
       noteController.text = result['content'] as String? ?? '';
+      final loadedId = result['id'];
+
+      if (loadedId is num) {
+        currentNoteId = loadedId.toInt();
+      }
+
+      currentNoteTitle =
+          result['title'] as String? ?? widget.noteTitle ?? widget.noteType;
 
       final savedDrawing = result['drawing'] as String?;
 
@@ -203,22 +250,75 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
         });
       }
     }
+
+    savedContent = noteController.text;
+    savedDrawingSignature = currentDrawingSignature();
   }
 
   Future<void> saveNote() async {
-    await noteDbController.saveNote(
+    final savedId = await noteDbController.saveNote(
       widget.subjectTitle,
       widget.selectedField,
       noteController.text,
       widget.noteType,
       encodeStrokes(),
+      id: currentNoteId,
+      title: currentNoteTitle,
     );
 
     if (!mounted) return;
 
+    setState(() {
+      currentNoteId = savedId ?? currentNoteId;
+      savedContent = noteController.text;
+      savedDrawingSignature = currentDrawingSignature();
+    });
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Note saved')));
+  }
+
+  Future<bool> confirmDiscardIfNeeded() async {
+    if (!shouldConfirmExit) return true;
+
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Unsaved note'),
+          content: const Text(
+            'This note has changes that have not been saved. Going back will discard those changes.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Keep editing'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Discard changes'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return shouldLeave ?? false;
+  }
+
+  Future<void> handlePopAttempt(bool didPop, Object? result) async {
+    if (didPop) return;
+
+    final shouldLeave = await confirmDiscardIfNeeded();
+
+    if (!mounted || !shouldLeave) return;
+
+    setState(() {
+      allowRoutePop = true;
+    });
+
+    Navigator.of(context).pop(result);
   }
 
   void startStroke(Offset point) {
@@ -953,7 +1053,9 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
                   child: TextField(
                     controller: controller,
                     onChanged: (value) {
-                      element.text = value;
+                      setState(() {
+                        element.text = value;
+                      });
                     },
                     maxLines: null,
                     expands: true,
@@ -1054,6 +1156,7 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
       controller.dispose();
     }
 
+    noteController.removeListener(handleNoteTextChanged);
     noteController.dispose();
     super.dispose();
   }
@@ -1064,183 +1167,203 @@ class _SubjectNoteScreenState extends State<SubjectNoteScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final widthOptions = selectedTool == 'Eraser' ? eraserWidths : strokeWidths;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.subjectTitle),
-        actions: [
-          IconButton(onPressed: saveNote, icon: const Icon(Icons.save)),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  buildToolButton(Icons.edit, 'Pen'),
-                  const SizedBox(width: 10),
-                  buildToolButton(Icons.auto_fix_off, 'Eraser'),
-                  const SizedBox(width: 10),
-                  buildToolButton(Icons.text_fields, 'Text'),
-                  const SizedBox(width: 10),
-                  buildActionButton(
-                    Icons.sticky_note_2_outlined,
-                    'Sticky',
-                    addStickyNote,
-                  ),
-                  const SizedBox(width: 10),
-                  buildActionButton(
-                    Icons.emoji_emotions_outlined,
-                    'Sticker',
-                    showStickerPicker,
-                  ),
-                  const SizedBox(width: 10),
-                  buildToolButton(Icons.undo, 'Undo'),
-                  const SizedBox(width: 10),
-                  buildToolButton(Icons.delete_outline, 'Clear'),
-                  const SizedBox(width: 20),
-                  ...templates.expand(
-                    (template) => [
-                      buildTemplateChip(template),
-                      const SizedBox(width: 10),
-                    ],
-                  ),
-                ],
+    return PopScope<Object?>(
+      canPop: allowRoutePop || !shouldConfirmExit,
+      onPopInvokedWithResult: handlePopAttempt,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(currentNoteTitle),
+              Text(
+                widget.subjectTitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            if (showPenTray) ...[
-              const SizedBox(height: 12),
-              buildPenTray(colorScheme),
             ],
-            const SizedBox(height: 14),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  if (selectedTool != 'Eraser') ...[
-                    const Text(
-                      'Color:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(width: 12),
-                    ...penColors.map(buildColorButton),
-                    const SizedBox(width: 20),
-                  ],
-                  Text(
-                    selectedTool == 'Eraser' ? 'Eraser size:' : 'Thickness:',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 12),
-                  ...widthOptions.map(buildStrokeButton),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Note Type: ${widget.noteType}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final canvasSize = Size(
-                      constraints.maxWidth,
-                      constraints.maxHeight,
-                    );
-
-                    return Stack(
-                      children: [
-                        if (widget.noteType == 'Lined Note')
-                          CustomPaint(
-                            size: Size.infinite,
-                            painter: LinedPagePainter(),
-                          ),
-                        if (widget.noteType == 'Grid Note')
-                          CustomPaint(
-                            size: Size.infinite,
-                            painter: GridPagePainter(),
-                          ),
-                        CustomPaint(
-                          size: Size.infinite,
-                          painter: DrawingPainter(strokes),
-                        ),
-                        if (selectedTool == 'Eraser' &&
-                            eraserPreviewPoint != null)
-                          CustomPaint(
-                            size: Size.infinite,
-                            painter: EraserPreviewPainter(
-                              center: eraserPreviewPoint!,
-                              diameter: selectedEraserWidth,
-                              color: colorScheme.primary,
-                            ),
-                          ),
-                        IgnorePointer(
-                          ignoring: selectedTool != 'Text',
-                          child: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: TextField(
-                              controller: noteController,
-                              maxLines: null,
-                              expands: true,
-                              keyboardType: TextInputType.multiline,
-                              textInputAction: TextInputAction.newline,
-                              enableSuggestions: true,
-                              autocorrect: true,
-                              decoration: InputDecoration(
-                                border: InputBorder.none,
-                                hintText: noteController.text.isEmpty
-                                    ? 'Write your $selectedTemplate note...'
-                                    : null,
-                              ),
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: selectedPenColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (selectedTool == 'Pen' || selectedTool == 'Eraser')
-                          GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onPanStart: (details) {
-                              startStroke(details.localPosition);
-                            },
-                            onPanUpdate: (details) {
-                              updateStroke(details.localPosition);
-                            },
-                            onPanEnd: (_) {
-                              endStroke();
-                            },
-                            child: Container(),
-                          ),
-                        ...pageElements.map(
-                          (element) => buildPageElement(element, canvasSize),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'Save note',
+              onPressed: saveNote,
+              icon: const Icon(Icons.save),
             ),
           ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    buildToolButton(Icons.edit, 'Pen'),
+                    const SizedBox(width: 10),
+                    buildToolButton(Icons.auto_fix_off, 'Eraser'),
+                    const SizedBox(width: 10),
+                    buildToolButton(Icons.text_fields, 'Text'),
+                    const SizedBox(width: 10),
+                    buildActionButton(
+                      Icons.sticky_note_2_outlined,
+                      'Sticky',
+                      addStickyNote,
+                    ),
+                    const SizedBox(width: 10),
+                    buildActionButton(
+                      Icons.emoji_emotions_outlined,
+                      'Sticker',
+                      showStickerPicker,
+                    ),
+                    const SizedBox(width: 10),
+                    buildToolButton(Icons.undo, 'Undo'),
+                    const SizedBox(width: 10),
+                    buildToolButton(Icons.delete_outline, 'Clear'),
+                    const SizedBox(width: 20),
+                    ...templates.expand(
+                      (template) => [
+                        buildTemplateChip(template),
+                        const SizedBox(width: 10),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (showPenTray) ...[
+                const SizedBox(height: 12),
+                buildPenTray(colorScheme),
+              ],
+              const SizedBox(height: 14),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    if (selectedTool != 'Eraser') ...[
+                      const Text(
+                        'Color:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 12),
+                      ...penColors.map(buildColorButton),
+                      const SizedBox(width: 20),
+                    ],
+                    Text(
+                      selectedTool == 'Eraser' ? 'Eraser size:' : 'Thickness:',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 12),
+                    ...widthOptions.map(buildStrokeButton),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Note Type: ${widget.noteType}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final canvasSize = Size(
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                      );
+
+                      return Stack(
+                        children: [
+                          if (widget.noteType == 'Lined Note')
+                            CustomPaint(
+                              size: Size.infinite,
+                              painter: LinedPagePainter(),
+                            ),
+                          if (widget.noteType == 'Grid Note')
+                            CustomPaint(
+                              size: Size.infinite,
+                              painter: GridPagePainter(),
+                            ),
+                          CustomPaint(
+                            size: Size.infinite,
+                            painter: DrawingPainter(strokes),
+                          ),
+                          if (selectedTool == 'Eraser' &&
+                              eraserPreviewPoint != null)
+                            CustomPaint(
+                              size: Size.infinite,
+                              painter: EraserPreviewPainter(
+                                center: eraserPreviewPoint!,
+                                diameter: selectedEraserWidth,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          IgnorePointer(
+                            ignoring: selectedTool != 'Text',
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: TextField(
+                                controller: noteController,
+                                maxLines: null,
+                                expands: true,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: TextInputAction.newline,
+                                enableSuggestions: true,
+                                autocorrect: true,
+                                decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  hintText: noteController.text.isEmpty
+                                      ? 'Write your note here...'
+                                      : null,
+                                ),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: selectedPenColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (selectedTool == 'Pen' || selectedTool == 'Eraser')
+                            GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onPanStart: (details) {
+                                startStroke(details.localPosition);
+                              },
+                              onPanUpdate: (details) {
+                                updateStroke(details.localPosition);
+                              },
+                              onPanEnd: (_) {
+                                endStroke();
+                              },
+                              child: Container(),
+                            ),
+                          ...pageElements.map(
+                            (element) => buildPageElement(element, canvasSize),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -18,11 +18,12 @@ class MedicineSelectionScreen extends StatelessWidget {
 
     if (!context.mounted) return;
 
-    Navigator.pushReplacement(
+    Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
         builder: (context) => HomeScreen(selectedField: specialization),
       ),
+      (route) => false,
     );
   }
 

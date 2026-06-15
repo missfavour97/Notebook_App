@@ -188,30 +188,160 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
   }
 
   Future<void> openSubject(Map<String, dynamic> subject) async {
-    final note = await noteController.loadNote(
-      subject['title'],
+    final subjectTitle = subject['title']?.toString() ?? '';
+    final notes = await noteController.loadSubjectNotes(
+      subjectTitle,
       widget.selectedField,
     );
 
     if (!mounted) return;
 
-    if (note != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SubjectNoteScreen(
-            subjectTitle: subject['title'],
-            selectedField: widget.selectedField,
-            noteType: note['noteType'] as String? ?? 'Blank Note',
-          ),
-        ),
-      );
-    } else {
-      chooseNoteType(subject);
+    if (notes.isEmpty) {
+      chooseNoteType(subject, existingNoteCount: 0);
+      return;
     }
+
+    showSubjectNotesDialog(subject, notes);
   }
 
-  void chooseNoteType(Map<String, dynamic> subject) {
+  Future<void> showSubjectNotesDialog(
+    Map<String, dynamic> subject,
+    List<Map<String, dynamic>> notes,
+  ) async {
+    final subjectTitle = subject['title']?.toString() ?? '';
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620, maxHeight: 620),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              subjectTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(dialogContext)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Continue a note or create a new page.',
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      chooseNoteType(subject, existingNoteCount: notes.length);
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add new note'),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: notes.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final note = notes[index];
+
+                        return Material(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(14),
+                          child: ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            leading: CircleAvatar(
+                              backgroundColor: colorScheme.primaryContainer,
+                              foregroundColor: colorScheme.primary,
+                              child: const Icon(Icons.note_alt_outlined),
+                            ),
+                            title: Text(
+                              noteTitle(note),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${note['noteType'] ?? 'Blank Note'} • ${notePreview(note)}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: const Icon(Icons.arrow_forward),
+                            onTap: () {
+                              Navigator.pop(dialogContext);
+                              openExistingNote(note);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> openExistingNote(Map<String, dynamic> note) async {
+    final id = note['id'];
+
+    if (id is! num) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubjectNoteScreen(
+          noteId: id.toInt(),
+          noteTitle: noteTitle(note),
+          subjectTitle: note['subject']?.toString() ?? '',
+          selectedField: widget.selectedField,
+          noteType: note['noteType']?.toString() ?? 'Blank Note',
+        ),
+      ),
+    );
+  }
+
+  void chooseNoteType(
+    Map<String, dynamic> subject, {
+    required int existingNoteCount,
+  }) {
     showDialog(
       context: context,
       builder: (context) {
@@ -242,13 +372,29 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
                   mainAxisSpacing: 16,
                   childAspectRatio: 1.5,
                   children: [
-                    buildNoteTypeCard(subject, 'Blank Note', Icons.crop_square),
-                    buildNoteTypeCard(subject, 'Lined Note', Icons.menu),
-                    buildNoteTypeCard(subject, 'Grid Note', Icons.grid_on),
+                    buildNoteTypeCard(
+                      subject,
+                      'Blank Note',
+                      Icons.crop_square,
+                      existingNoteCount,
+                    ),
+                    buildNoteTypeCard(
+                      subject,
+                      'Lined Note',
+                      Icons.menu,
+                      existingNoteCount,
+                    ),
+                    buildNoteTypeCard(
+                      subject,
+                      'Grid Note',
+                      Icons.grid_on,
+                      existingNoteCount,
+                    ),
                     buildNoteTypeCard(
                       subject,
                       'Template Note',
                       Icons.description,
+                      existingNoteCount,
                     ),
                   ],
                 ),
@@ -269,26 +415,32 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
     Map<String, dynamic> subject,
     String noteType,
     IconData icon,
+    int existingNoteCount,
   ) {
     return InkWell(
       onTap: () async {
         Navigator.pop(context);
+        final subjectTitle = subject['title']?.toString() ?? '';
+        final title = existingNoteCount == 0
+            ? noteType
+            : '$noteType ${existingNoteCount + 1}';
 
-        await noteController.saveNote(
-          subject['title'],
-          widget.selectedField,
-          '',
-          noteType,
-          '',
+        final noteId = await noteController.createNote(
+          subject: subjectTitle,
+          field: widget.selectedField,
+          noteType: noteType,
+          title: title,
         );
 
-        if (!mounted) return;
+        if (!mounted || noteId == null) return;
 
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => SubjectNoteScreen(
-              subjectTitle: subject['title'],
+              noteId: noteId,
+              noteTitle: title,
+              subjectTitle: subjectTitle,
               selectedField: widget.selectedField,
               noteType: noteType,
             ),
@@ -312,6 +464,29 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
         ),
       ),
     );
+  }
+
+  String noteTitle(Map<String, dynamic> note) {
+    final title = note['title']?.toString().trim() ?? '';
+
+    if (title.isNotEmpty) return title;
+
+    return note['noteType']?.toString() ?? 'Untitled Note';
+  }
+
+  String notePreview(Map<String, dynamic> note) {
+    final content = note['content']?.toString().trim() ?? '';
+    final drawing = note['drawing']?.toString() ?? '';
+
+    if (content.isNotEmpty) {
+      return content.length > 80 ? '${content.substring(0, 80)}...' : content;
+    }
+
+    if (drawing.isNotEmpty && drawing != '[]') {
+      return 'Drawing and page elements';
+    }
+
+    return 'Empty note';
   }
 
   Widget buildCoverPicker({

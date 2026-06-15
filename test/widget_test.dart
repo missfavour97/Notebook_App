@@ -13,7 +13,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('My Notebook'), findsOneWidget);
-    expect(find.text('Sign in to continue'), findsOneWidget);
+    expect(
+      find.text('Sign in with the email you used to create your account.'),
+      findsOneWidget,
+    );
     expect(find.text('Login'), findsOneWidget);
   });
 }

@@ -14,6 +14,10 @@ class AuthController {
     return await authRepository.registerUser(name, email, password);
   }
 
+  Future<bool> resetPassword(String email, String newPassword) async {
+    return await authRepository.resetPassword(email, newPassword);
+  }
+
   Future<void> claimLegacyData(String email) async {
     await authRepository.claimLegacyData(email);
   }

@@ -55,6 +55,8 @@ class _NotesScreenState extends State<NotesScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => SubjectNoteScreen(
+          noteId: note['id'] is num ? (note['id'] as num).toInt() : null,
+          noteTitle: noteTitle(note),
           subjectTitle: note['subject']?.toString() ?? '',
           selectedField: widget.selectedField,
           noteType: note['noteType']?.toString() ?? 'Blank Note',
@@ -66,12 +68,21 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   Future<void> deleteNote(Map<String, dynamic> note) async {
-    await noteController.deleteNote(
-      note['subject']?.toString() ?? '',
-      widget.selectedField,
-    );
+    final id = note['id'];
+
+    if (id is num) {
+      await noteController.deleteNoteById(id.toInt());
+    }
 
     loadNotes();
+  }
+
+  String noteTitle(Map<String, dynamic> note) {
+    final title = note['title']?.toString().trim() ?? '';
+
+    if (title.isNotEmpty) return title;
+
+    return note['noteType']?.toString() ?? 'Untitled Note';
   }
 
   String notePreview(Map<String, dynamic> note) {
@@ -90,11 +101,11 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   Widget buildNoteCard(Map<String, dynamic> note) {
-    final title = note['subject']?.toString() ?? '';
+    final subjectTitle = note['subject']?.toString() ?? '';
     final cover = NotebookCoverStyles.byColorAndPattern(
       note['coverColor'] is int ? note['coverColor'] as int : null,
       note['coverPattern']?.toString(),
-      title,
+      subjectTitle,
     );
 
     return Card(
@@ -108,7 +119,7 @@ class _NotesScreenState extends State<NotesScreen> {
               SizedBox(
                 width: 86,
                 child: NotebookCover(
-                  title: title,
+                  title: subjectTitle,
                   subtitle: note['noteType']?.toString() ?? 'Blank Note',
                   cover: cover,
                   height: 110,
@@ -122,14 +133,16 @@ class _NotesScreenState extends State<NotesScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      title,
+                      noteTitle(note),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      note['noteType']?.toString() ?? 'Blank Note',
+                      '${note['subject'] ?? ''} • ${note['noteType'] ?? 'Blank Note'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: Theme.of(context).hintColor),
                     ),
                     const SizedBox(height: 8),

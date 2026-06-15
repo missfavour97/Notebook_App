@@ -21,6 +21,29 @@ class NoteRepository {
     );
   }
 
+  Future<Map<String, dynamic>?> loadNoteById(int id) async {
+    final userEmail = await userScope.email();
+
+    if (userEmail == null) return null;
+
+    return await noteDao.findById(id: id, userEmail: userEmail);
+  }
+
+  Future<List<Map<String, dynamic>>> loadSubjectNotes(
+    String subject,
+    String field,
+  ) async {
+    final userEmail = await userScope.email();
+
+    if (userEmail == null) return [];
+
+    return await noteDao.findBySubject(
+      subject: subject,
+      field: field,
+      userEmail: userEmail,
+    );
+  }
+
   Future<List<Map<String, dynamic>>> loadNotes(String field) async {
     final userEmail = await userScope.email();
 
@@ -37,18 +60,43 @@ class NoteRepository {
     return await noteDao.countByField(field: field, userEmail: userEmail);
   }
 
-  Future<void> saveNote(
+  Future<int?> createNote({
+    required String subject,
+    required String field,
+    required String noteType,
+    String? title,
+  }) async {
+    final userEmail = await userScope.email();
+
+    if (userEmail == null) return null;
+
+    return await noteDao.insertNote(
+      title: title ?? noteDao.defaultTitle(noteType),
+      subject: subject,
+      field: field,
+      content: '',
+      noteType: noteType,
+      drawing: '',
+      userEmail: userEmail,
+    );
+  }
+
+  Future<int?> saveNote(
     String subject,
     String field,
     String content,
     String noteType,
-    String drawing,
-  ) async {
+    String drawing, {
+    int? id,
+    String? title,
+  }) async {
     final userEmail = await userScope.email();
 
-    if (userEmail == null) return;
+    if (userEmail == null) return null;
 
-    await noteDao.upsertNote(
+    return await noteDao.upsertNote(
+      id: id,
+      title: title,
       subject: subject,
       field: field,
       content: content,
@@ -68,5 +116,13 @@ class NoteRepository {
       field: field,
       userEmail: userEmail,
     );
+  }
+
+  Future<void> deleteNoteById(int id) async {
+    final userEmail = await userScope.email();
+
+    if (userEmail == null) return;
+
+    await noteDao.deleteNoteById(id: id, userEmail: userEmail);
   }
 }

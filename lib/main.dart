@@ -20,9 +20,10 @@ class StudentNotebookApp extends StatelessWidget {
     final prefs = await SharedPreferences.getInstance();
 
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    final rememberMe = prefs.getBool('rememberMe') ?? false;
     final email = prefs.getString('userEmail');
 
-    if (isLoggedIn && email != null && email.isNotEmpty) {
+    if (isLoggedIn && rememberMe && email != null && email.isNotEmpty) {
       await DBHelper.claimLegacyData(email);
 
       final savedField = prefs.getString('selectedField_$email');

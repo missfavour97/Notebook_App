@@ -1,22 +1,52 @@
 import '../database/db_helper.dart';
 
 class NoteDao {
-  Future<Map<String, dynamic>?> findBySubjectAndField({
-    required String subject,
-    required String field,
+  Future<Map<String, dynamic>?> findById({
+    required int id,
     required String userEmail,
   }) async {
     final db = await DBHelper.initDb();
     final rows = await db.query(
       'notes',
-      where: 'subject = ? AND field = ? AND userEmail = ?',
-      whereArgs: [subject, field, userEmail],
+      where: 'id = ? AND userEmail = ?',
+      whereArgs: [id, userEmail],
       limit: 1,
     );
 
     if (rows.isEmpty) return null;
 
     return rows.first;
+  }
+
+  Future<Map<String, dynamic>?> findBySubjectAndField({
+    required String subject,
+    required String field,
+    required String userEmail,
+  }) async {
+    final rows = await findBySubject(
+      subject: subject,
+      field: field,
+      userEmail: userEmail,
+    );
+
+    if (rows.isEmpty) return null;
+
+    return rows.first;
+  }
+
+  Future<List<Map<String, dynamic>>> findBySubject({
+    required String subject,
+    required String field,
+    required String userEmail,
+  }) async {
+    final db = await DBHelper.initDb();
+
+    return await db.query(
+      'notes',
+      where: 'subject = ? AND field = ? AND userEmail = ?',
+      whereArgs: [subject, field, userEmail],
+      orderBy: 'updatedAt DESC',
+    );
   }
 
   Future<List<Map<String, dynamic>>> findByField({
@@ -29,7 +59,7 @@ class NoteDao {
       'notes',
       where: 'field = ? AND userEmail = ?',
       whereArgs: [field, userEmail],
-      orderBy: 'id DESC',
+      orderBy: 'updatedAt DESC',
     );
   }
 
@@ -55,7 +85,8 @@ class NoteDao {
     return rows.length;
   }
 
-  Future<void> upsertNote({
+  Future<int> insertNote({
+    required String title,
     required String subject,
     required String field,
     required String content,
@@ -64,30 +95,76 @@ class NoteDao {
     required String userEmail,
   }) async {
     final db = await DBHelper.initDb();
-    final existing = await findBySubjectAndField(
-      subject: subject,
-      field: field,
-      userEmail: userEmail,
-    );
-    final data = {
+    final now = DateTime.now().toIso8601String();
+
+    return await db.insert('notes', {
+      'title': title,
       'subject': subject,
       'field': field,
       'content': content,
       'noteType': noteType,
       'drawing': drawing,
       'userEmail': userEmail,
-    };
+      'createdAt': now,
+      'updatedAt': now,
+    });
+  }
 
-    if (existing != null) {
-      await db.update(
-        'notes',
-        data,
-        where: 'subject = ? AND field = ? AND userEmail = ?',
-        whereArgs: [subject, field, userEmail],
+  Future<void> updateNote({
+    required int id,
+    required String title,
+    required String content,
+    required String noteType,
+    required String drawing,
+    required String userEmail,
+  }) async {
+    final db = await DBHelper.initDb();
+
+    await db.update(
+      'notes',
+      {
+        'title': title,
+        'content': content,
+        'noteType': noteType,
+        'drawing': drawing,
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ? AND userEmail = ?',
+      whereArgs: [id, userEmail],
+    );
+  }
+
+  Future<int> upsertNote({
+    int? id,
+    String? title,
+    required String subject,
+    required String field,
+    required String content,
+    required String noteType,
+    required String drawing,
+    required String userEmail,
+  }) async {
+    if (id != null) {
+      await updateNote(
+        id: id,
+        title: title ?? defaultTitle(noteType),
+        content: content,
+        noteType: noteType,
+        drawing: drawing,
+        userEmail: userEmail,
       );
-    } else {
-      await db.insert('notes', data);
+      return id;
     }
+
+    return await insertNote(
+      title: title ?? defaultTitle(noteType),
+      subject: subject,
+      field: field,
+      content: content,
+      noteType: noteType,
+      drawing: drawing,
+      userEmail: userEmail,
+    );
   }
 
   Future<void> deleteNote({
@@ -102,5 +179,22 @@ class NoteDao {
       where: 'subject = ? AND field = ? AND userEmail = ?',
       whereArgs: [subject, field, userEmail],
     );
+  }
+
+  Future<void> deleteNoteById({
+    required int id,
+    required String userEmail,
+  }) async {
+    final db = await DBHelper.initDb();
+
+    await db.delete(
+      'notes',
+      where: 'id = ? AND userEmail = ?',
+      whereArgs: [id, userEmail],
+    );
+  }
+
+  String defaultTitle(String noteType) {
+    return noteType.trim().isEmpty ? 'Untitled Note' : noteType;
   }
 }

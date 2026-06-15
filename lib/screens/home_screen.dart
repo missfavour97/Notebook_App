@@ -9,6 +9,7 @@ import 'search_screen.dart';
 import 'resources_screen.dart';
 import 'theme_screen.dart';
 import 'backup_screen.dart';
+import 'field_selection_screen.dart';
 import '../repositories/dashboard_repository.dart';
 import '../widgets/notebook_cover.dart';
 
@@ -143,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildSidebarItem(context, Icons.search, 'Search'),
             _buildSidebarItem(context, Icons.library_books, 'Resources'),
             _buildSidebarItem(context, Icons.inventory_2_outlined, 'Backup'),
+            _buildSidebarItem(context, Icons.tune, 'Change Mode'),
             _buildSidebarItem(context, Icons.palette, 'Theme'),
             const Spacer(),
             _buildSidebarItem(context, Icons.logout, 'Logout'),
@@ -169,9 +171,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          Text(
-            'Mode: ${widget.selectedField}',
-            style: const TextStyle(fontSize: 16, color: Colors.grey),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                'Mode: ${widget.selectedField}',
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              OutlinedButton.icon(
+                onPressed: _changeMode,
+                icon: const Icon(Icons.tune, size: 18),
+                label: const Text('Change mode'),
+              ),
+            ],
           ),
           SizedBox(height: isCompact ? 18 : 30),
           _buildSummaryCards(isCompact: isCompact),
@@ -611,6 +625,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _changeMode() async {
+    await Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const FieldSelectionScreen()),
+    );
+  }
+
   Widget _buildSidebarItem(BuildContext context, IconData icon, String title) {
     return ListTile(
       leading: Icon(icon),
@@ -640,6 +661,8 @@ class _HomeScreenState extends State<HomeScreen> {
           await _openResources();
         } else if (title == 'Backup') {
           await _openBackup();
+        } else if (title == 'Change Mode') {
+          await _changeMode();
         } else if (title == 'Theme') {
           await Navigator.push(
             navigationContext,
